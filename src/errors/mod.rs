@@ -26,4 +26,7 @@ pub enum FaLocalError {
 
     #[error("internal invariant violated: {0}")]
     InternalInvariant(String),
+
+    #[error("writeback not yet wired: {0}")]
+    WritebackNotWired(String),
 }

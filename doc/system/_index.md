@@ -23,6 +23,7 @@ Assembly contract:
 | SS2 | [02-boundaries-and-doctrine.md](02-boundaries-and-doctrine.md) | Authority boundaries, policy-before-execution doctrine, and anti-drift posture |
 | SS3 | [03-contract-surface.md](03-contract-surface.md) | Implemented contract inventory, typed validation surfaces, and current execution-control vocabulary |
 | SS4 | [04-validation-and-delivery.md](04-validation-and-delivery.md) | Build/test wiring, delivered contract slice, and current delivery posture |
+| SS5 | [05-execution-bridge-writeback.md](05-execution-bridge-writeback.md) | Execution bridge writeback path design: FA Local → DataForge Local → DataForge Cloud → Forge_Command |
 
 ## Quick Assembly
 

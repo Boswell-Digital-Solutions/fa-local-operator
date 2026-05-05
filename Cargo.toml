@@ -8,6 +8,10 @@ publish = false
 name = "fa_local"
 path = "src/lib.rs"
 
+[[bin]]
+name = "fa-local-run"
+path = "src/bin/fa_local_run.rs"
+
 [dependencies]
 chrono = { version = "0.4", features = ["clock", "serde"] }
 jsonschema = { version = "0.45", default-features = false }

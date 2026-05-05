@@ -63,6 +63,10 @@ It adds:
 - top-level repo docs and ADR stubs
 - bounded source-tree layout for domain, app, adapters, and integrations
 - shared runtime vocabulary aligned to the FA Local doctrine
+- `IntakeService` typed schema-validated entry point (`validate_request`, `validate_request_bytes`)
+- `fa-local-run` CLI binary (`validate` and `status` subcommands)
+- `DfLocalAdapter::post_execution_status_event()` typed writeback stub (returns `WritebackNotWired` until DataForge Local endpoint is live)
+- `ci_gate.sh` contract gate runner (forge-contract-core gates + `cargo test`)
 - typed denial/error primitives
 - schema-backed contracts for requester trust, policy artifact, capability registry, execution request, execution plan, execution status, route decision, and denial guard
 - pure schema loading and validation helpers
@@ -93,10 +97,11 @@ The following planned surfaces are explicitly not delivered yet:
 
 - any second adapter or multi-adapter runtime surface
 - broad cross-service adapter integrations
-- CLI, daemon, or API surface
+- daemon or networked API surface
 - forensic persistence layer
 - concrete forensic export sink
 - persistence layer
+- DataForge Local staging endpoint wiring for execution_status_event writeback (Phase X4 DataForge side)
 
 ## Current delivery posture
 
@@ -105,6 +110,9 @@ The repo currently supports:
 - `cargo fmt`
 - `cargo test`
 - `bash doc/system/BUILD.sh`
+- `bash ci_gate.sh` (forge-contract-core gates + cargo test)
+- `./target/debug/fa-local-run validate <path>` (or stdin)
+- `./target/debug/fa-local-run status`
 
 The current delivered state should be described as:
 
@@ -124,6 +132,10 @@ The current delivered state should be described as:
 - first bounded review-package emitter workflow present
 - first bounded adapter-backed external route-delivery layer present
 - first concrete capability-scoped adapter present
+- first typed intake boundary present (`IntakeService`)
+- first CLI binary surface present (`fa-local-run`)
+- first typed writeback stub present (`DfLocalAdapter::post_execution_status_event` — not yet wired)
+- contract gate runner present (`ci_gate.sh`)
 - no full external FA Local runtime surface admitted yet
 
-That wording matters because the crate now has meaningful contract, deny-path, posture-resolution, bounded plan-validation, truthful status, bounded review-handoff behavior, a bounded review-package emitter workflow for both current review postures, minimal forensic-event truth behavior, a bounded forensic recorder/export workflow, bounded operator-friction behavior, deterministic internal routing behavior, bounded internal coordination behavior, a narrow adapter-backed delivery seam, and one concrete capability-scoped adapter, but it still does not ship persistence, a concrete forensic export sink, a second adapter, generic workflow orchestration, or a CLI/API/daemon runtime surface.
+That wording matters because the crate now has meaningful contract, deny-path, posture-resolution, bounded plan-validation, truthful status, bounded review-handoff behavior, a bounded review-package emitter workflow for both current review postures, minimal forensic-event truth behavior, a bounded forensic recorder/export workflow, bounded operator-friction behavior, deterministic internal routing behavior, bounded internal coordination behavior, a narrow adapter-backed delivery seam, one concrete capability-scoped adapter, a typed intake entry point, a CLI binary, and a typed writeback stub — but it still does not ship persistence, a concrete forensic export sink, a second adapter, generic workflow orchestration, or a networked API/daemon runtime surface.

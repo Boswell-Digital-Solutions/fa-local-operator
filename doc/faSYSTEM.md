@@ -23,6 +23,7 @@ Assembly contract:
 | SS2 | [02-boundaries-and-doctrine.md](02-boundaries-and-doctrine.md) | Authority boundaries, policy-before-execution doctrine, and anti-drift posture |
 | SS3 | [03-contract-surface.md](03-contract-surface.md) | Implemented contract inventory, typed validation surfaces, and current execution-control vocabulary |
 | SS4 | [04-validation-and-delivery.md](04-validation-and-delivery.md) | Build/test wiring, delivered contract slice, and current delivery posture |
+| SS5 | [05-execution-bridge-writeback.md](05-execution-bridge-writeback.md) | Execution bridge writeback path design: FA Local → DataForge Local → DataForge Cloud → Forge_Command |
 
 ## Quick Assembly
 
@@ -256,8 +257,9 @@ The current machine-checked typed surface includes:
 - route-decision, policy-reference, and capability-decision-summary types
 - pure approval-posture resolver inputs and context
 - schema-name dispatch plus contract load/deserialize helpers
+- `IntakeService` — schema-validated execution request intake entry point (`validate_request()` and `validate_request_bytes()`)
 
-This gives FA Local a stable baseline for deny-by-default behavior with the first contract layer, the first machine-checked decision layer, the first bounded plan-validation layer, the first truthful status layer, the first structured review-handoff layer, the first minimal forensic-truth layer, and the first bounded operator-friction layer already in place.
+This gives FA Local a stable baseline for deny-by-default behavior with the first contract layer, the first machine-checked decision layer, the first bounded plan-validation layer, the first truthful status layer, the first structured review-handoff layer, the first minimal forensic-truth layer, the first bounded operator-friction layer, and the first typed intake boundary already in place.
 
 ## Approval and execution posture
 
@@ -322,7 +324,13 @@ They still do not perform semantic interpretation, planner behavior, or unbounde
 
 All currently planned baseline contracts now exist in schema-backed form.
 
-There is also no CLI, daemon, or API surface, no persistence layer, no concrete forensic export sink, and no second adapter or multi-adapter runtime surface in the current baseline. The review-package emitter remains intentionally bounded to the two current review postures only and does not introduce generic workflow behavior beyond `review_required` and `explicit_operator_approval`.
+Phase X4 added:
+- `IntakeService` in `src/app/intake_service.rs` — the schema-validated entry point for external execution requests. It wraps `ExecutionRequest::load_contract_value()` and provides both `validate_request(&Value)` and `validate_request_bytes(&[u8])` convenience methods.
+- `fa-local-run` CLI binary (`src/bin/fa_local_run.rs`) — a synchronous binary providing `validate` and `status` subcommands for local operator use.
+
+There is no persistence layer, no concrete forensic export sink, and no second adapter or multi-adapter runtime surface in the current baseline. The review-package emitter remains intentionally bounded to the two current review postures only and does not introduce generic workflow behavior beyond `review_required` and `explicit_operator_approval`.
+
+The execution bridge writeback path (`DfLocalAdapter::post_execution_status_event`) is present as a typed stub — the DataForge Local staging endpoint is pending Phase X4 completion on the DataForge side.
 
 ## Supporting references
 
@@ -345,8 +353,10 @@ This section is grounded in:
 - `src/adapters/execution_delivery/local_file_write.rs`
 - `src/app/execution_service.rs`
 - `src/app/forensic_service.rs`
+- `src/app/intake_service.rs`
 - `src/app/review_service.rs`
 - `src/app/routing_service.rs`
+- `src/bin/fa_local_run.rs`
 - `docs/fa_local_codex_build_plan_v_1.md`
 
 ---
@@ -416,6 +426,10 @@ It adds:
 - top-level repo docs and ADR stubs
 - bounded source-tree layout for domain, app, adapters, and integrations
 - shared runtime vocabulary aligned to the FA Local doctrine
+- `IntakeService` typed schema-validated entry point (`validate_request`, `validate_request_bytes`)
+- `fa-local-run` CLI binary (`validate` and `status` subcommands)
+- `DfLocalAdapter::post_execution_status_event()` typed writeback stub (returns `WritebackNotWired` until DataForge Local endpoint is live)
+- `ci_gate.sh` contract gate runner (forge-contract-core gates + `cargo test`)
 - typed denial/error primitives
 - schema-backed contracts for requester trust, policy artifact, capability registry, execution request, execution plan, execution status, route decision, and denial guard
 - pure schema loading and validation helpers
@@ -446,10 +460,11 @@ The following planned surfaces are explicitly not delivered yet:
 
 - any second adapter or multi-adapter runtime surface
 - broad cross-service adapter integrations
-- CLI, daemon, or API surface
+- daemon or networked API surface
 - forensic persistence layer
 - concrete forensic export sink
 - persistence layer
+- DataForge Local staging endpoint wiring for execution_status_event writeback (Phase X4 DataForge side)
 
 ## Current delivery posture
 
@@ -458,6 +473,9 @@ The repo currently supports:
 - `cargo fmt`
 - `cargo test`
 - `bash doc/system/BUILD.sh`
+- `bash ci_gate.sh` (forge-contract-core gates + cargo test)
+- `./target/debug/fa-local-run validate <path>` (or stdin)
+- `./target/debug/fa-local-run status`
 
 The current delivered state should be described as:
 
@@ -477,6 +495,100 @@ The current delivered state should be described as:
 - first bounded review-package emitter workflow present
 - first bounded adapter-backed external route-delivery layer present
 - first concrete capability-scoped adapter present
+- first typed intake boundary present (`IntakeService`)
+- first CLI binary surface present (`fa-local-run`)
+- first typed writeback stub present (`DfLocalAdapter::post_execution_status_event` — not yet wired)
+- contract gate runner present (`ci_gate.sh`)
 - no full external FA Local runtime surface admitted yet
 
-That wording matters because the crate now has meaningful contract, deny-path, posture-resolution, bounded plan-validation, truthful status, bounded review-handoff behavior, a bounded review-package emitter workflow for both current review postures, minimal forensic-event truth behavior, a bounded forensic recorder/export workflow, bounded operator-friction behavior, deterministic internal routing behavior, bounded internal coordination behavior, a narrow adapter-backed delivery seam, and one concrete capability-scoped adapter, but it still does not ship persistence, a concrete forensic export sink, a second adapter, generic workflow orchestration, or a CLI/API/daemon runtime surface.
+That wording matters because the crate now has meaningful contract, deny-path, posture-resolution, bounded plan-validation, truthful status, bounded review-handoff behavior, a bounded review-package emitter workflow for both current review postures, minimal forensic-event truth behavior, a bounded forensic recorder/export workflow, bounded operator-friction behavior, deterministic internal routing behavior, bounded internal coordination behavior, a narrow adapter-backed delivery seam, one concrete capability-scoped adapter, a typed intake entry point, a CLI binary, and a typed writeback stub — but it still does not ship persistence, a concrete forensic export sink, a second adapter, generic workflow orchestration, or a networked API/daemon runtime surface.
+
+---
+
+# 5. Execution Bridge Writeback
+
+## Purpose
+
+This section documents the planned writeback path for FA Local execution status
+artifacts into the shared proving-slice pipeline.
+
+FA Local produces truthful execution status events. Those events must travel to
+DataForge Local's staging queue, be promoted to DataForge Cloud, and become
+visible in Forge_Command's execution review surface — following exactly the same
+pipeline as `source_drift_finding` artifacts in proving slice 01.
+
+## Writeback path
+
+```
+FA Local
+  ↓ post_execution_status_event()
+DataForge Local staging queue  (execution_status_event v1 artifact)
+  ↓ local promotion
+DataForge Cloud intake         (shared truth ingestion)
+  ↓ read model
+Forge_Command execution review surface
+```
+
+## Artifact family
+
+Writeback artifacts are in the `execution_status_event` v1 family, defined in
+`forge-contract-core/contracts/families/execution_status_event/`. They travel
+in the shared envelope format.
+
+Key envelope fields for writeback artifacts:
+
+| Field | Value |
+|-------|-------|
+| `artifact_family` | `execution_status_event` |
+| `artifact_version` | `1` |
+| `produced_by_system` | `fa-local-operator` |
+| `produced_by_component` | `execution_service.status_emitter` |
+| `source_scope` | `local` |
+| `promotion_class` | `promotable` |
+
+## Implementation boundary
+
+The `DfLocalAdapter.post_execution_status_event()` method in
+`src/integrations/df_local/mod.rs` establishes the typed contract boundary.
+
+**Current state (Phase X3):** Method signature and `ExecutionStatusWritebackRequest`/
+`ExecutionStatusWritebackResult` types are defined. The method returns
+`FaLocalError::WritebackNotWired` until Phase X4 completes the real endpoint.
+
+**Required for Phase X4:**
+
+1. DataForge Local needs an `execution_status_event` staging endpoint
+   (mirrors the existing `source_drift_finding` staging path)
+2. FA Local needs an HTTP client dependency (e.g., `reqwest` or `ureq`)
+3. `post_execution_status_event()` must:
+   - Serialize `ValidatedExecutionStatus` into `execution_status_event` v1 payload
+   - Build the full shared envelope with idempotency key
+   - POST to DataForge Local's configured local API address
+   - Return `ExecutionStatusWritebackResult { acknowledged: true }` on success
+
+## Authority constraints
+
+FA Local may NEVER:
+- Write directly to DataForge Cloud
+- Write source_drift_finding, promotion_envelope, or promotion_receipt artifacts
+- Write lifecycle transitions (ForgeCommand owns those)
+- Invent or modify approval decisions
+
+FA Local may ONLY:
+- POST `execution_request` and `execution_status_event` artifacts to DataForge Local
+- Consume `approval_artifact` artifacts from Forge_Command (via DataForge Local)
+
+## Approval artifact consumption path
+
+```
+Forge_Command
+  ↓ approval_artifact (v1)
+DataForge Cloud        (shared truth storage)
+  ↓ DataForge Local polls or subscribes
+DataForge Local
+  ↓ approval delivery to FA Local
+FA Local execution_service  (resumes waiting_explicit_approval path)
+```
+
+This path is not yet implemented. It will be designed in Phase X4 alongside
+the writeback endpoint work.

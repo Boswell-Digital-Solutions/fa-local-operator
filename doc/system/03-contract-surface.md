@@ -58,8 +58,9 @@ The current machine-checked typed surface includes:
 - route-decision, policy-reference, and capability-decision-summary types
 - pure approval-posture resolver inputs and context
 - schema-name dispatch plus contract load/deserialize helpers
+- `IntakeService` — schema-validated execution request intake entry point (`validate_request()` and `validate_request_bytes()`)
 
-This gives FA Local a stable baseline for deny-by-default behavior with the first contract layer, the first machine-checked decision layer, the first bounded plan-validation layer, the first truthful status layer, the first structured review-handoff layer, the first minimal forensic-truth layer, and the first bounded operator-friction layer already in place.
+This gives FA Local a stable baseline for deny-by-default behavior with the first contract layer, the first machine-checked decision layer, the first bounded plan-validation layer, the first truthful status layer, the first structured review-handoff layer, the first minimal forensic-truth layer, the first bounded operator-friction layer, and the first typed intake boundary already in place.
 
 ## Approval and execution posture
 
@@ -124,7 +125,13 @@ They still do not perform semantic interpretation, planner behavior, or unbounde
 
 All currently planned baseline contracts now exist in schema-backed form.
 
-There is also no CLI, daemon, or API surface, no persistence layer, no concrete forensic export sink, and no second adapter or multi-adapter runtime surface in the current baseline. The review-package emitter remains intentionally bounded to the two current review postures only and does not introduce generic workflow behavior beyond `review_required` and `explicit_operator_approval`.
+Phase X4 added:
+- `IntakeService` in `src/app/intake_service.rs` — the schema-validated entry point for external execution requests. It wraps `ExecutionRequest::load_contract_value()` and provides both `validate_request(&Value)` and `validate_request_bytes(&[u8])` convenience methods.
+- `fa-local-run` CLI binary (`src/bin/fa_local_run.rs`) — a synchronous binary providing `validate` and `status` subcommands for local operator use.
+
+There is no persistence layer, no concrete forensic export sink, and no second adapter or multi-adapter runtime surface in the current baseline. The review-package emitter remains intentionally bounded to the two current review postures only and does not introduce generic workflow behavior beyond `review_required` and `explicit_operator_approval`.
+
+The execution bridge writeback path (`DfLocalAdapter::post_execution_status_event`) is present as a typed stub — the DataForge Local staging endpoint is pending Phase X4 completion on the DataForge side.
 
 ## Supporting references
 
@@ -147,6 +154,8 @@ This section is grounded in:
 - `src/adapters/execution_delivery/local_file_write.rs`
 - `src/app/execution_service.rs`
 - `src/app/forensic_service.rs`
+- `src/app/intake_service.rs`
 - `src/app/review_service.rs`
 - `src/app/routing_service.rs`
+- `src/bin/fa_local_run.rs`
 - `docs/fa_local_codex_build_plan_v_1.md`
