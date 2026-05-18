@@ -1,38 +1,35 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-PARTS_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$PARTS_DIR/../.." && pwd)"
-ROOT_OUTPUT="$REPO_ROOT/SYSTEM.md"
-DOC_OUTPUT="$REPO_ROOT/doc/SYSTEM.md"
-LEGACY_OUTPUT_REL="doc/faSYSTEM.md"
+PARTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$PARTS_DIR/../.." && pwd)"
+OUTPUT="${OUTPUT:-doc/FLOSYSTEM.md}"
+VALIDATOR="$PARTS_DIR/validate_snapshots.sh"
+
+mkdir -p "$(dirname "$ROOT_DIR/$OUTPUT")"
+
 TMP_OUTPUT="$(mktemp)"
+trap 'rm -f "$TMP_OUTPUT"' EXIT
 
-echo "Assembling SYSTEM.md..."
+if [ -f "$PARTS_DIR/_index.md" ]; then
+  cat "$PARTS_DIR/_index.md" > "$TMP_OUTPUT"
+fi
 
-cat "$PARTS_DIR/_index.md" > "$TMP_OUTPUT"
-
+shopt -s nullglob
 for part in "$PARTS_DIR"/[0-9][0-9]-*.md; do
   echo "" >> "$TMP_OUTPUT"
   echo "---" >> "$TMP_OUTPUT"
   echo "" >> "$TMP_OUTPUT"
   cat "$part" >> "$TMP_OUTPUT"
 done
+shopt -u nullglob
 
-cp "$TMP_OUTPUT" "$ROOT_OUTPUT"
-cp "$TMP_OUTPUT" "$DOC_OUTPUT"
-
-if [[ -n "$LEGACY_OUTPUT_REL" ]]; then
-  LEGACY_OUTPUT="$REPO_ROOT/$LEGACY_OUTPUT_REL"
-  mkdir -p "$(dirname "$LEGACY_OUTPUT")"
-  cp "$TMP_OUTPUT" "$LEGACY_OUTPUT"
+if [ -x "$VALIDATOR" ]; then
+  bash "$VALIDATOR" "$TMP_OUTPUT"
 fi
 
-chmod 664 "$ROOT_OUTPUT" "$DOC_OUTPUT"
-if [[ -n "$LEGACY_OUTPUT_REL" ]]; then
-  chmod 664 "$REPO_ROOT/$LEGACY_OUTPUT_REL"
-fi
+cp "$TMP_OUTPUT" "$ROOT_DIR/$OUTPUT"
+chmod 664 "$ROOT_DIR/$OUTPUT"
 
-LINE_COUNT=$(wc -l < "$ROOT_OUTPUT")
-rm -f "$TMP_OUTPUT"
-echo "SYSTEM.md assembled: $LINE_COUNT lines"
+LINE_COUNT=$(wc -l < "$ROOT_DIR/$OUTPUT")
+echo "$OUTPUT assembled: $LINE_COUNT lines"
