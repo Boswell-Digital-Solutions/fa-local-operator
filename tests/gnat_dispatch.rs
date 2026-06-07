@@ -187,6 +187,26 @@ fn ready_fa_local_admits_rtf_text_worker_when_requested() {
 }
 
 #[test]
+fn ready_fa_local_admits_odt_text_worker_when_requested() {
+    let mut envelope = load_basic_envelope();
+    envelope.required_capabilities.worker_types.push(GnatWorkerType::OdtTextSyntax);
+    envelope.plan.shards.push(fa_local::integrations::cortex::GnatDispatchShard {
+        shard_id: "gnat-run-fixture-001-shard-0002".to_owned(),
+        ordinal: 2,
+        worker_type: GnatWorkerType::OdtTextSyntax,
+        source_ref: "odt-note".to_owned(),
+        source_fingerprint_digest: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".to_owned(),
+        deadline_ms: 30000,
+    });
+    envelope.plan.shard_count = 3;
+    let capabilities = GnatFaLocalCapabilityState::ready_default();
+
+    let admission = GnatDispatchValidator::negotiate(&envelope, &capabilities).unwrap();
+
+    assert!(admission.admitted_worker_types.contains(&GnatWorkerType::OdtTextSyntax));
+}
+
+#[test]
 fn unsupported_contract_version_denies_dispatch() {
     let mut envelope = load_basic_envelope();
     envelope
