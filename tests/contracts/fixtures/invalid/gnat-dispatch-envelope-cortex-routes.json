@@ -1,0 +1,46 @@
+{
+  "contract_version": "GnatDispatchEnvelope.v1",
+  "correlation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "requester_service": "cortex",
+  "plan": {
+    "contract_version": "GnatRunPlan.v1",
+    "run_id": "gnat-run-fixture-001",
+    "plan_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "operation": "syntax_extract",
+    "expected_receipt_schema": "gnat-worker-receipt.schema.json",
+    "shard_count": 1,
+    "shards": [
+      {
+        "shard_id": "gnat-run-fixture-001-shard-0000",
+        "ordinal": 0,
+        "worker_type": "markdown_syntax",
+        "source_ref": "chapter-01",
+        "source_fingerprint_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "deadline_ms": 30000
+      }
+    ],
+    "execution_limits": {
+      "requested_concurrency": 1,
+      "max_concurrency": 4,
+      "deadline_ms": 30000
+    },
+    "serial_fallback_allowed": true
+  },
+  "required_capabilities": {
+    "supported_contract_versions": [
+      "GnatDispatchEnvelope.v1",
+      "GnatRunPlan.v1",
+      "GnatWorkerReceipt.v1"
+    ],
+    "worker_types": [
+      "markdown_syntax"
+    ],
+    "cancellation_policy": "cancel_remaining_shards",
+    "deadline_enforced": true
+  },
+  "route_policy": {
+    "fa_local_owns_execution_routing": false,
+    "cortex_validates_receipts": true,
+    "retry_policy": "infrastructure_only"
+  }
+}

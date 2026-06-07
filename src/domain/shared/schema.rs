@@ -19,10 +19,11 @@ pub enum SchemaName {
     FrictionPayload,
     RouteDecision,
     DenialGuard,
+    GnatDispatchEnvelope,
 }
 
 impl SchemaName {
-    pub const ALL: [SchemaName; 11] = [
+    pub const ALL: [SchemaName; 12] = [
         SchemaName::RequesterTrust,
         SchemaName::PolicyArtifact,
         SchemaName::CapabilityRegistry,
@@ -34,6 +35,7 @@ impl SchemaName {
         SchemaName::FrictionPayload,
         SchemaName::RouteDecision,
         SchemaName::DenialGuard,
+        SchemaName::GnatDispatchEnvelope,
     ];
 
     pub const fn all() -> &'static [SchemaName] {
@@ -53,6 +55,7 @@ impl SchemaName {
             SchemaName::FrictionPayload => "friction-payload",
             SchemaName::RouteDecision => "route-decision",
             SchemaName::DenialGuard => "denial-guard",
+            SchemaName::GnatDispatchEnvelope => "gnat-dispatch-envelope",
         }
     }
 
@@ -69,6 +72,7 @@ impl SchemaName {
             SchemaName::FrictionPayload => "friction-payload.schema.json",
             SchemaName::RouteDecision => "route-decision.schema.json",
             SchemaName::DenialGuard => "denial-guard.schema.json",
+            SchemaName::GnatDispatchEnvelope => "gnat-dispatch-envelope.schema.json",
         }
     }
 

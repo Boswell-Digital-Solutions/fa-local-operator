@@ -11,6 +11,7 @@ use fa_local::domain::requester_trust::RequesterTrustEngine;
 use fa_local::domain::review::ReviewPackage;
 use fa_local::domain::routing::RouteDecisionLoader;
 use fa_local::domain::status::ExecutionStatus;
+use fa_local::integrations::cortex::GnatDispatchEnvelope;
 use fa_local::{EnvironmentMode, RequesterClass, SchemaName};
 
 #[test]
@@ -184,4 +185,14 @@ fn valid_friction_payload_fixture_loads_into_typed_model() {
         payload.execution_state,
         fa_local::ExecutionState::WaitingExplicitApproval
     );
+}
+
+#[test]
+fn valid_gnat_dispatch_envelope_fixture_loads_into_typed_model() {
+    let value = support::load_fixture_json("valid", "gnat-dispatch-envelope-basic.json");
+    let envelope = GnatDispatchEnvelope::load_contract_value(&value).unwrap();
+
+    assert_eq!(envelope.requester_service, "cortex");
+    assert_eq!(envelope.plan.shard_count, 2);
+    assert_eq!(envelope.required_capabilities.worker_types.len(), 2);
 }
