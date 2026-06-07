@@ -207,6 +207,26 @@ fn ready_fa_local_admits_odt_text_worker_when_requested() {
 }
 
 #[test]
+fn ready_fa_local_admits_epub_text_worker_when_requested() {
+    let mut envelope = load_basic_envelope();
+    envelope.required_capabilities.worker_types.push(GnatWorkerType::EpubTextSyntax);
+    envelope.plan.shards.push(fa_local::integrations::cortex::GnatDispatchShard {
+        shard_id: "gnat-run-fixture-001-shard-0002".to_owned(),
+        ordinal: 2,
+        worker_type: GnatWorkerType::EpubTextSyntax,
+        source_ref: "epub-note".to_owned(),
+        source_fingerprint_digest: "9999999999999999999999999999999999999999999999999999999999999999".to_owned(),
+        deadline_ms: 30000,
+    });
+    envelope.plan.shard_count = 3;
+    let capabilities = GnatFaLocalCapabilityState::ready_default();
+
+    let admission = GnatDispatchValidator::negotiate(&envelope, &capabilities).unwrap();
+
+    assert!(admission.admitted_worker_types.contains(&GnatWorkerType::EpubTextSyntax));
+}
+
+#[test]
 fn unsupported_contract_version_denies_dispatch() {
     let mut envelope = load_basic_envelope();
     envelope

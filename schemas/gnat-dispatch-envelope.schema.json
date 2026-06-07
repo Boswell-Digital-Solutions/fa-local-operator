@@ -132,7 +132,7 @@
         "worker_types": {
           "type": "array",
           "minItems": 1,
-          "maxItems": 6,
+          "maxItems": 7,
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/worker_type"
@@ -188,7 +188,8 @@
         "pdf_text_syntax",
         "docx_text_syntax",
         "rtf_text_syntax",
-        "odt_text_syntax"
+        "odt_text_syntax",
+        "epub_text_syntax"
       ]
     },
     "shard": {
