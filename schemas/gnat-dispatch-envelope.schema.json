@@ -132,7 +132,7 @@
         "worker_types": {
           "type": "array",
           "minItems": 1,
-          "maxItems": 3,
+          "maxItems": 4,
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/worker_type"
@@ -185,7 +185,8 @@
       "enum": [
         "markdown_syntax",
         "plain_text_syntax",
-        "pdf_text_syntax"
+        "pdf_text_syntax",
+        "docx_text_syntax"
       ]
     },
     "shard": {
