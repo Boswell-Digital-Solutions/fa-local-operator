@@ -66,6 +66,7 @@ It adds:
 - `IntakeService` typed schema-validated entry point (`validate_request`, `validate_request_bytes`)
 - `fa-local-run` CLI binary (`validate` and `status` subcommands)
 - `DfLocalAdapter::post_execution_status_event()` typed writeback stub (returns `WritebackNotWired` until DataForge Local endpoint is live)
+- `NeuronForgeLocalAdapter` typed local-inference boundary with a `LocalInferenceTransport` seam (fail-closed admission of bounded inference requests; returns `InferenceNotWired` until a transport is attached)
 - `ci_gate.sh` contract gate runner (forge-contract-core gates + `cargo test`)
 - typed denial/error primitives
 - schema-backed contracts for requester trust, policy artifact, capability registry, execution request, execution plan, execution status, route decision, and denial guard

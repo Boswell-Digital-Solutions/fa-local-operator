@@ -29,4 +29,7 @@ pub enum FaLocalError {
 
     #[error("writeback not yet wired: {0}")]
     WritebackNotWired(String),
+
+    #[error("local inference not yet wired: {0}")]
+    InferenceNotWired(String),
 }
