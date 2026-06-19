@@ -1,4 +1,4 @@
-# 1. Overview and Charter
+# §1 — Overview & Charter
 
 ## Purpose
 

@@ -1,4 +1,4 @@
-# 2. Boundaries and Doctrine
+# §8 — Boundaries & Doctrine
 
 ## Authority line
 

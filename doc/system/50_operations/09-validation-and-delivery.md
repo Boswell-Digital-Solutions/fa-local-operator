@@ -1,4 +1,4 @@
-# 4. Validation and Delivery
+# §9 — Validation & Delivery
 
 ## Validation surface
 

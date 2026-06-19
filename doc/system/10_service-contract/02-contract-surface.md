@@ -1,4 +1,4 @@
-# 3. Contract Surface
+# §2 — Contract Surface
 
 ## Implemented and planned contract set
 
