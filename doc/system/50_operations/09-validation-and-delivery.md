@@ -88,6 +88,7 @@ It adds:
 - explicit adapter boundary for external route delivery from already selected admitted routes
 - bounded adapter-result mapping back into existing execution-status truth surfaces
 - one concrete capability-scoped local-file-write adapter behind the delivery boundary
+- one concrete Nmap preflight adapter that checks declared local runtime availability and maps missing `nmap` to `unavailable_dependency_block`
 - deterministic contract fixtures and deny smoke coverage
 - latest `jsonschema` validator release aligned in the crate dependency set
 
@@ -95,7 +96,7 @@ It adds:
 
 The following planned surfaces are explicitly not delivered yet:
 
-- any second adapter or multi-adapter runtime surface
+- multi-adapter dispatch or runtime selection surface
 - broad cross-service adapter integrations
 - daemon or networked API surface
 - forensic persistence layer
@@ -132,10 +133,11 @@ The current delivered state should be described as:
 - first bounded review-package emitter workflow present
 - first bounded adapter-backed external route-delivery layer present
 - first concrete capability-scoped adapter present
+- second concrete adapter present only for Nmap runtime preflight, with no scan execution or free-form argument surface
 - first typed intake boundary present (`IntakeService`)
 - first CLI binary surface present (`fa-local-run`)
 - first typed writeback stub present (`DfLocalAdapter::post_execution_status_event` — not yet wired)
 - contract gate runner present (`ci_gate.sh`)
 - no full external FA Local runtime surface admitted yet
 
-That wording matters because the crate now has meaningful contract, deny-path, posture-resolution, bounded plan-validation, truthful status, bounded review-handoff behavior, a bounded review-package emitter workflow for both current review postures, minimal forensic-event truth behavior, a bounded forensic recorder/export workflow, bounded operator-friction behavior, deterministic internal routing behavior, bounded internal coordination behavior, a narrow adapter-backed delivery seam, one concrete capability-scoped adapter, a typed intake entry point, a CLI binary, and a typed writeback stub — but it still does not ship persistence, a concrete forensic export sink, a second adapter, generic workflow orchestration, or a networked API/daemon runtime surface.
+That wording matters because the crate now has meaningful contract, deny-path, posture-resolution, bounded plan-validation, truthful status, bounded review-handoff behavior, a bounded review-package emitter workflow for both current review postures, minimal forensic-event truth behavior, a bounded forensic recorder/export workflow, bounded operator-friction behavior, deterministic internal routing behavior, bounded internal coordination behavior, a narrow adapter-backed delivery seam, one concrete capability-scoped local-file-write adapter, one concrete Nmap preflight adapter, a typed intake entry point, a CLI binary, and a typed writeback stub — but it still does not ship persistence, a concrete forensic export sink, multi-adapter dispatch, generic workflow orchestration, live scan execution, or a networked API/daemon runtime surface.

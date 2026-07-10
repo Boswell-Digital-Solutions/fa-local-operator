@@ -24,10 +24,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Locate forge-contract-core relative to ecosystem root
-# FA Local is at: Local systems/fa-local-operator/ → ../../contracts/forge-contract-core
+# Locate forge-contract-core relative to ecosystem root.
+# Allow CONTRACT_CORE_PATH to point at the live checkout when repo naming differs.
 ECOSYSTEM_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CONTRACT_CORE_PATH="$ECOSYSTEM_ROOT/contracts/forge-contract-core"
+CONTRACT_CORE_PATH="${CONTRACT_CORE_PATH:-$ECOSYSTEM_ROOT/contracts/forge-contract-core}"
+if [[ ! -d "$CONTRACT_CORE_PATH" && -d "$ECOSYSTEM_ROOT/contracts/forge_contract_core" ]]; then
+    CONTRACT_CORE_PATH="$ECOSYSTEM_ROOT/contracts/forge_contract_core"
+fi
 REPORT_DIR="$SCRIPT_DIR/reports"
 
 if [[ ! -d "$CONTRACT_CORE_PATH" ]]; then

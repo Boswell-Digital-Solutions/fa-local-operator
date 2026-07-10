@@ -118,7 +118,7 @@ The current pure logic layer can already:
 - preserve explicit operator-action semantics without inventing workflow authorship
 - require explicit linkage or omission rules for review-package, plan-hash, and denial surfaces inside friction payloads
 
-These checks remain bounded to validation, deny-path admission, pure decision output, bounded plan fingerprinting, truthful status shaping, deterministic internal routing, bounded internal coordination, explicit adapter-backed delivery over already selected admitted routes, one concrete capability-scoped local-file-write adapter, one bounded review-package emitter workflow for contract-compatible review-required and explicit-approval paths, and one bounded forensic recorder/export workflow over already-known execution truth.
+These checks remain bounded to validation, deny-path admission, pure decision output, bounded plan fingerprinting, truthful status shaping, deterministic internal routing, bounded internal coordination, explicit adapter-backed delivery over already selected admitted routes, one concrete capability-scoped local-file-write adapter, one concrete Nmap preflight adapter that only reports declared local runtime availability, one bounded review-package emitter workflow for contract-compatible review-required and explicit-approval paths, and one bounded forensic recorder/export workflow over already-known execution truth.
 They still do not perform semantic interpretation, planner behavior, or unbounded external invocation.
 
 ## Current implementation boundary
@@ -129,7 +129,7 @@ Phase X4 added:
 - `IntakeService` in `src/app/intake_service.rs` — the schema-validated entry point for external execution requests. It wraps `ExecutionRequest::load_contract_value()` and provides both `validate_request(&Value)` and `validate_request_bytes(&[u8])` convenience methods.
 - `fa-local-run` CLI binary (`src/bin/fa_local_run.rs`) — a synchronous binary providing `validate` and `status` subcommands for local operator use.
 
-There is no persistence layer, no concrete forensic export sink, and no second adapter or multi-adapter runtime surface in the current baseline. The review-package emitter remains intentionally bounded to the two current review postures only and does not introduce generic workflow behavior beyond `review_required` and `explicit_operator_approval`.
+There is no persistence layer, no concrete forensic export sink, and no multi-adapter dispatch or runtime selection surface in the current baseline. The Nmap preflight adapter does not run scans, accept free-form arguments, or create a networked daemon surface. The review-package emitter remains intentionally bounded to the two current review postures only and does not introduce generic workflow behavior beyond `review_required` and `explicit_operator_approval`.
 
 The execution bridge writeback path (`DfLocalAdapter::post_execution_status_event`) is present as a typed stub — the DataForge Local staging endpoint is pending Phase X4 completion on the DataForge side.
 
@@ -152,6 +152,7 @@ This section is grounded in:
 - `src/adapters/exports/mod.rs`
 - `src/adapters/execution_delivery/mod.rs`
 - `src/adapters/execution_delivery/local_file_write.rs`
+- `src/adapters/execution_delivery/nmap_preflight.rs`
 - `src/app/execution_service.rs`
 - `src/app/forensic_service.rs`
 - `src/app/intake_service.rs`

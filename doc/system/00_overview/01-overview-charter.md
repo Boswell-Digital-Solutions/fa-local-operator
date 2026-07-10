@@ -64,6 +64,7 @@ It currently includes:
 - explicit adapter boundary for already routed admitted work
 - bounded adapter-backed external route delivery mapped back into truthful execution-status surfaces
 - one concrete capability-scoped local-file-write adapter implementation
+- one concrete Nmap preflight adapter that checks declared local runtime availability without running scans or accepting free-form arguments
 - bounded review-package emission workflow for coherent review-required and explicit-approval paths
 - bounded forensic recorder/export workflow over already-known execution truth
 - pure execution-status validation and construction helpers
@@ -74,7 +75,7 @@ It currently includes:
 
 What is still intentionally not delivered:
 
-- any second adapter or multi-adapter runtime surface
+- multi-adapter dispatch or runtime selection surface
 - broad cross-service adapter integrations
 - external adapter-backed execution coordination beyond the current bounded delivery seam
 - CLI, daemon, or API surfaces
