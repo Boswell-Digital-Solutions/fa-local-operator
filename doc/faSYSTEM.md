@@ -329,7 +329,7 @@ Phase X4 added:
 - `IntakeService` in `src/app/intake_service.rs` — the schema-validated entry point for external execution requests. It wraps `ExecutionRequest::load_contract_value()` and provides both `validate_request(&Value)` and `validate_request_bytes(&[u8])` convenience methods.
 - `fa-local-run` CLI binary (`src/bin/fa_local_run.rs`) — a synchronous binary providing `validate` and `status` subcommands for local operator use.
 
-There is no persistence layer, no concrete forensic export sink, and no multi-adapter dispatch or runtime selection surface in the current baseline. The Nmap preflight adapter does not run scans, accept free-form arguments, or create a networked daemon surface. The review-package emitter remains intentionally bounded to the two current review postures only and does not introduce generic workflow behavior beyond `review_required` and `explicit_operator_approval`.
+There is no persistence layer, no concrete forensic export sink, and no multi-adapter dispatch or runtime selection surface in the current baseline. The Nmap preflight adapter is bounded to a declared `local_process_spawn` capability and execution plan, does not run scans, does not accept free-form arguments, and does not create a networked daemon surface. Missing `nmap` runtime truth can be represented as a degraded execution status and recorded through the existing minimized forensic-event path. The review-package emitter remains intentionally bounded to the two current review postures only and does not introduce generic workflow behavior beyond `review_required` and `explicit_operator_approval`.
 
 The execution bridge writeback path (`DfLocalAdapter::post_execution_status_event`) is present as a typed stub — the DataForge Local staging endpoint is pending Phase X4 completion on the DataForge side.
 
@@ -453,6 +453,7 @@ It adds:
 - bounded adapter-result mapping back into existing execution-status truth surfaces
 - one concrete capability-scoped local-file-write adapter behind the delivery boundary
 - one concrete Nmap preflight adapter that checks declared local runtime availability and maps missing `nmap` to `unavailable_dependency_block`
+- Nmap preflight fixtures proving `local_process_spawn` capability/plan validation and minimized forensic recording for degraded missing-runtime truth
 - deterministic contract fixtures and deny smoke coverage
 - latest `jsonschema` validator release aligned in the crate dependency set
 

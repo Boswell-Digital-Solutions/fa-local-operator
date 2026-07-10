@@ -89,6 +89,7 @@ It adds:
 - bounded adapter-result mapping back into existing execution-status truth surfaces
 - one concrete capability-scoped local-file-write adapter behind the delivery boundary
 - one concrete Nmap preflight adapter that checks declared local runtime availability and maps missing `nmap` to `unavailable_dependency_block`
+- Nmap preflight fixtures proving `local_process_spawn` capability/plan validation and minimized forensic recording for degraded missing-runtime truth
 - deterministic contract fixtures and deny smoke coverage
 - latest `jsonschema` validator release aligned in the crate dependency set
 

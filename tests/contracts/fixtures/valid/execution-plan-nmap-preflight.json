@@ -1,0 +1,26 @@
+{
+  "execution_plan_id": "44444444-4444-4444-8444-444444444445",
+  "correlation_id": "22222222-2222-4222-8222-222222222222",
+  "originating_request_id": "33333333-3333-4333-8333-333333333333",
+  "steps": [
+    {
+      "step_id": "step_nmap_preflight",
+      "capability_id": "77777777-7777-4777-8777-777777777777",
+      "declared_side_effect_class": "local_process_spawn",
+      "timeout_budget_ms": 1000
+    }
+  ],
+  "referenced_capabilities": [
+    "77777777-7777-4777-8777-777777777777"
+  ],
+  "declared_max_step_count": 1,
+  "declared_side_effect_classes": [
+    "local_process_spawn"
+  ],
+  "fallback_references": [],
+  "cancellation_policy": "cancel_remaining_steps",
+  "completion_policy": "all_steps_must_succeed",
+  "max_duration_budget_ms": 1000,
+  "stable_plan_hash": "4a0657158427c6c834a1264cf61e15ce9851d75278b6241ee7d2e0ade130eac5",
+  "planned_at_utc": "2030-01-01T00:10:00Z"
+}

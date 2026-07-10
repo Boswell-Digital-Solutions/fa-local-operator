@@ -1,0 +1,28 @@
+{
+  "registry_version": "1.0.0",
+  "capabilities": [
+    {
+      "capability_id": "77777777-7777-4777-8777-777777777777",
+      "owner_service": "fa-local",
+      "capability_type": "local_process_spawn",
+      "side_effect_class": "local_process_spawn",
+      "approval_posture": "policy_preapproved",
+      "allowed_requester_classes": [
+        "trusted_app_surface"
+      ],
+      "timeout_budget_ms": 1000,
+      "retry_budget": 0,
+      "max_duration_budget_ms": 1000,
+      "max_cpu_budget": 1,
+      "max_mem_budget_mb": 128,
+      "enabled_state": "enabled",
+      "review_class": "none",
+      "provenance": {
+        "source_kind": "registry_file",
+        "issued_at": "2029-12-30T00:00:00Z"
+      },
+      "revocation_state": "active",
+      "version_range": ">=1.0.0"
+    }
+  ]
+}

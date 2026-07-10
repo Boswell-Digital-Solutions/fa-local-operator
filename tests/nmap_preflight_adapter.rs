@@ -1,3 +1,5 @@
+mod support;
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -11,10 +13,19 @@ use fa_local::adapters::execution_delivery::{
     AdapterDeliveryRequest, AdapterDeliveryResult, ExternalRouteDeliveryAdapter,
 };
 use fa_local::app::execution_service::{CoordinationContext, ExecutionService};
-use fa_local::app::routing_service::{RoutePathKind, SelectedExecutionRoute};
+use fa_local::app::forensic_service::{
+    ForensicRecordContext, ForensicRecordInput, ForensicRecordKind, ForensicService,
+};
+use fa_local::app::routing_service::{
+    RoutePathKind, RoutingInput, RoutingService, SelectedExecutionRoute,
+};
+use fa_local::domain::capabilities::{CapabilityRegistry, CapabilityRegistryLoader};
+use fa_local::domain::execution::{ExecutionPlan, ExecutionPlanValidator, ValidatedExecutionPlan};
+use fa_local::domain::forensics::{ForensicEventType, RedactionLevel};
+use fa_local::domain::routing::{RouteDecision, RouteDecisionLoader};
 use fa_local::{
     ApprovalPosture, CapabilityId, CorrelationId, DegradedSubtype, ExecutionPlanId, ExecutionState,
-    RequestId, RouteDecisionId,
+    RequestId, RouteDecisionId, SideEffectClass,
 };
 
 fn ts(
@@ -55,6 +66,41 @@ fn nmap_adapter(nmap_binary: PathBuf) -> NmapPreflightDeliveryAdapter {
         nmap_binary,
         NmapScanProfile::LoopbackTcpConnectV1,
     ))
+}
+
+fn nmap_capability_registry() -> CapabilityRegistry {
+    CapabilityRegistryLoader::load_contract_value(&support::load_fixture_json(
+        "valid",
+        "capability-registry-nmap-preflight.json",
+    ))
+    .unwrap()
+}
+
+fn nmap_validated_plan() -> ValidatedExecutionPlan {
+    let registry = nmap_capability_registry();
+    let plan = ExecutionPlan::load_contract_value(&support::load_fixture_json(
+        "valid",
+        "execution-plan-nmap-preflight.json",
+    ))
+    .unwrap();
+
+    ExecutionPlanValidator::validate(&plan, &registry).unwrap()
+}
+
+fn nmap_route_decision() -> RouteDecision {
+    RouteDecisionLoader::load_contract_value(&support::load_fixture_json(
+        "valid",
+        "route-decision-nmap-preflight-policy-preapproved.json",
+    ))
+    .unwrap()
+}
+
+fn selected_nmap_route() -> SelectedExecutionRoute {
+    RoutingService
+        .select_route(
+            RoutingInput::new(nmap_route_decision(), Some(nmap_validated_plan())).unwrap(),
+        )
+        .unwrap()
 }
 
 fn request() -> AdapterDeliveryRequest {
@@ -199,6 +245,75 @@ fn execution_service_maps_missing_nmap_to_degraded_status() {
     );
     assert_eq!(
         trace.final_status().status.truthful_user_visible_summary,
+        "nmap runtime is unavailable for declared scan profile"
+    );
+}
+
+#[test]
+fn nmap_preflight_is_bound_to_local_process_spawn_registry_and_plan() {
+    let registry = nmap_capability_registry();
+    let capability = registry.capability_for(capability_id()).unwrap();
+    let plan = nmap_validated_plan();
+    let route = selected_nmap_route();
+
+    assert_eq!(
+        capability.side_effect_class,
+        SideEffectClass::LocalProcessSpawn
+    );
+    assert_eq!(capability.capability_id, capability_id());
+    assert_eq!(plan.plan.steps.len(), 1);
+    assert_eq!(
+        plan.stable_plan_hash,
+        "4a0657158427c6c834a1264cf61e15ce9851d75278b6241ee7d2e0ade130eac5"
+    );
+    assert_eq!(route.declared_step_ids, vec!["step_nmap_preflight"]);
+    assert_eq!(route.declared_capability_ids, vec![capability_id()]);
+    assert_eq!(
+        route.resolved_approval_posture,
+        ApprovalPosture::PolicyPreapproved
+    );
+}
+
+#[test]
+fn missing_nmap_degraded_status_records_minimized_forensic_event() {
+    let adapter = nmap_adapter(temp_path("forensic-missing-runtime"));
+    let route = selected_nmap_route();
+    let route_decision = nmap_route_decision();
+
+    let trace = ExecutionService
+        .deliver_selected_route(&route, &adapter, context())
+        .unwrap();
+    let final_status = trace.final_status().clone();
+
+    let event = ForensicService
+        .record_event(
+            ForensicRecordInput::new(
+                ForensicRecordKind::ExecutionStatusObserved {
+                    route_decision,
+                    execution_status: final_status,
+                },
+                RedactionLevel::LinkageOnly,
+                ForensicRecordContext::new(ts(2030, 1, 1, 0, 31, 0)),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+    assert_eq!(
+        event.event.event_type,
+        ForensicEventType::ExecutionStatusObserved
+    );
+    assert_eq!(event.event.execution_state, ExecutionState::Degraded);
+    assert_eq!(
+        event.event.degraded_subtype,
+        Some(DegradedSubtype::UnavailableDependencyBlock)
+    );
+    assert_eq!(event.event.route_decision_id, Some(route.route_decision_id));
+    assert_eq!(event.event.execution_plan_id, route.execution_plan_id);
+    assert_eq!(event.event.stable_plan_hash, route.stable_plan_hash);
+    assert!(event.event.payload_minimized);
+    assert_eq!(
+        event.event.summary,
         "nmap runtime is unavailable for declared scan profile"
     );
 }
