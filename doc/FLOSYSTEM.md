@@ -47,6 +47,8 @@ bash doc/system/BUILD.sh
 
 # §1 — Overview & Charter
 
+> **System identity — bds family (Boswell Digital Solutions business system, local-systems tier).** This service is part of the Forge ecosystem backend in `ecosystem/local-systems`. It is **not** the Forge public-app support counterpart `apps/public-app-local-support/fa-local`.
+
 ## Purpose
 
 FA Local is the bounded local execution-control service for Forge applications.

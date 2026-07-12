@@ -1,4 +1,9 @@
-# FA Local Operator
+# bds · FA Local Operator
+
+> **System identity — bds family (Boswell Digital Solutions business system, local-systems tier).**
+> The governed local execution operator within the Forge **ecosystem backend**; part of `ecosystem/local-systems`.
+> **Purpose:** business-side local runtime — backend/ecosystem execution, not public-app support.
+> **Not the Forge counterpart:** the public-app support boundary is `apps/public-app-local-support/fa-local` (Forge family).
 
 FA Local is the governed local execution boundary for Forge applications.
 
