@@ -2,18 +2,19 @@
 
 **Truth class:** snapshot (audit-derived)
 
-fa-local-operator is a bounded worker in the local Cortex "Gnats" swarm; its
-dependencies are the swarm peers and the contracts it conforms to. Re-measure
+fa-local-operator is a bounded execution worker in the federated local plane; its
+dependencies are the local-plane peers and the contracts it conforms to. Re-measure
 against the build manifest when this changes.
 
-## Swarm Peers
+## Local-plane peers
 
 | Peer | Role | Relationship |
 |------|------|--------------|
-| Cortex (`COR`) | Planning / extraction | Upstream — produces the plan fa-local-operator routes |
-| NeuronForge-Local | Semantics / candidate generation | Peer — supplies semantics/candidates |
+| Yellowjacket | Workcell admission & lane routing | Upstream — resolves/pins the approved skill/workcell and routes the lane |
+| Cortex (`COR`) | Preparation / extraction | Upstream — file intelligence + retrieval-preparation packages fa-local-operator consumes |
+| NeuronForge-Local | Model intelligence | Peer — supplies inference/embeddings/LoRAs |
 | DataForge-Local (`DLO`) | Local durable persistence | Downstream — persists operational truth |
-| ForgeCommand (`FCO`) | Operator / control plane | Orchestrates; consumes results |
+| ForgeCommand (`FCO`) | Operator / control plane | Governs; consumes results |
 
 ## Contract Dependencies
 

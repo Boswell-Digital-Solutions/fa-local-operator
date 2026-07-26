@@ -12,35 +12,44 @@ doctrine are in §8.
 
 ## fa-local-operator Service Authority
 
-fa-local-operator is the **ForgeAgents-Local operator** — a bounded, deterministic
-worker in the local Cortex "Gnats" swarm. Its role is **routing**: within the
-local self-healing swarm, Cortex plans/extracts, fa-local-operator routes,
-NeuronForge-Local supplies semantics/candidates, and DataForge-Local persists.
-fa-local-operator's authority is routing-and-bridge-oriented: it routes work to
-the right local worker and bridges execution results back through a contract
-surface — it does not plan, decide, or persist canonical truth.
+fa-local-operator is the **business/internal ForgeAgents-Local worker** — a
+bounded, deterministic execution worker in the federated local plane. Its role is
+**execution**: requester and capability admission, bounded-plan validation,
+deterministic dispatch, adapter execution, review handoff, and status evidence.
+Within the local plane, Cortex (`COR`) prepares and extracts (file intelligence,
+retrieval preparation, handoff packages — it does not sequence workflows or select
+executors), NeuronForge-Local supplies model intelligence, DataForge-Local
+persists, and Yellowjacket governs workcell admission and lane routing above the
+worker. fa-local-operator admits and dispatches capabilities and bridges execution
+results back through a contract surface — it does not sequence workflows, decide,
+or persist canonical truth.
 
 ## What fa-local-operator Owns
 
-- **Routing** within the local Gnats swarm (the FA-Local lane).
+- **Capability admission & deterministic dispatch** within the local FA-Local lane
+  — requester/capability admission, bounded-plan validation, and adapter execution.
 - **Contract-surface conformance** (§2) — honoring its contract surface exactly.
-- **Execution-bridge writeback** (§3) — bridging execution results back across the
-  contract boundary.
+- **Execution-bridge writeback & review handoff** (§3) — bridging execution results
+  and status evidence back across the contract boundary.
 - **Validation & delivery** (§9) of its own bounded behavior.
 
 ## What fa-local-operator Does Not Own
 
-- **Planning / extraction.** Cortex (`COR`) owns swarm planning.
-- **Semantics / candidate generation.** NeuronForge-Local owns those.
-- **Durable persistence.** DataForge-Local persists the swarm's operational truth.
+- **Preparation / extraction.** Cortex (`COR`) owns file intelligence and retrieval
+  preparation — not workflow planning or executor selection.
+- **Workcell admission & lane routing.** Yellowjacket resolves and pins the approved
+  skill/workcell and routes the lane; fa-local-operator executes within it.
+- **Model intelligence.** NeuronForge-Local supplies inference/embeddings/LoRAs.
+- **Durable persistence.** DataForge-Local persists the local plane's operational truth.
 - **Decision / canonical truth or orchestration.** ForgeCommand is the
   operator/control plane.
 
 ## Bounded-Worker Discipline
 
-fa-local-operator is a bounded, deterministic Gnat: it fails closed on ambiguity,
-stays within its routing/bridge lane, and never expands into planning, semantics,
-persistence, or decision authority.
+fa-local-operator is a bounded, deterministic worker: it fails closed on ambiguity,
+stays within its capability-admission / dispatch / execution-bridge lane, and never
+expands into workflow planning, workcell routing, model intelligence, persistence,
+or decision authority.
 
 ## Release / Readiness Language Restrictions
 
@@ -52,7 +61,8 @@ the specific claim.
 
 ## Documentation truth classes
 
-- **Canonical facts** define fa-local-operator's routing role, swarm boundaries,
+- **Canonical facts** define fa-local-operator's execution role (capability
+  admission, dispatch, execution bridge), local-plane boundaries,
   contract-surface conformance, and bounded-worker discipline. They change only
   through deliberate change control (§7).
 - **Snapshot facts** are audit-derived counts (modules, tests, slices) labelled
