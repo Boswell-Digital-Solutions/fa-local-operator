@@ -1,58 +1,51 @@
-# FA Local — Claude Instructions
+# fa-local-operator (FLO) — Claude Code Context
 
-## Module Map
+Business/internal local ForgeAgents worker: capability admission, bounded-plan validation,
+dispatch, adapter execution, review handoff, status evidence.
 
-| Module | Surface | Current role |
-| --- | --- | --- |
-| Documentation Stack | `doc/system/`, `doc/FLOSYSTEM.md`, `scripts/context-bundle.sh` | Canonical repo context and build surfaces |
-| Runtime Surface | `app/`, `service/`, `cortex_runtime/`, `api/`, `src/`, `src-tauri/`, or `crates/` | Primary implementation boundary |
-| Data and Schemas | `schemas/`, `models/`, `db/`, `sql/`, `alembic/`, or `migrations/` | Persistence and validation surfaces |
-| Governance and Specs | `docs/`, `governance/`, `DECISIONS/`, `prompts/`, `evals/`, `analytics/`, or `registry/` | Repo doctrine, experiments, and supporting design material |
-| Verification | `tests/`, `fixtures/`, `evidence/`, `audit/`, or `reports/` | Test and audit surfaces |
+> **Not `forge-fa-local`.** Same brand, two families. This is the business-side system at
+> `ecosystem/local-systems/fa-local-operator`; `apps/public-app-local-support/forge-fa-local` is
+> the public-app support variant. Path decides which one owns the behaviour.
 
-## Coding Standards
+Canonical reference: `doc/FLOSYSTEM.md`, assembled from `doc/system/` via `bash doc/system/BUILD.sh`.
+Contracts: [`schemas/`](schemas/) — `capability-registry`, `execution-request`, `execution-plan`,
+`execution-status`, `denial-guard`, `friction-payload`, `forensic-event`, with worked cases in
+`schemas/examples/`.
 
-- Treat `doc/system/` part files as canonical; rebuild `doc/FLOSYSTEM.md` with `bash doc/system/BUILD.sh`
-- Keep documentation in present tense and aligned to implemented reality
-- Prefer bounded patches over broad rewrites unless a file is clearly scaffold-only
-- Do not bypass repo-local authority boundaries documented in `doc/FLOSYSTEM.md`
+---
 
-## File Conventions
+## Boundaries
 
-- Canonical system docs live under `doc/system/`
-- Root `doc/FLOSYSTEM.md` is a build artifact
-- Supporting design material lives under `docs/`
-- Repo automation scripts live under `scripts/`
-- Tests live under `tests/` when present
+FLO is the validating dispatcher of the local plane: **it validates plans and dispatches; it does
+not extract or prepare** (that is COR), and it is not a general-purpose executor.
 
-## Context Loading
+- **Deny by default.** Capability admission is a gate, not a lookup — `denial-guard.schema.json`
+  defines the refusal shape, and a refusal is a first-class outcome, not an error path.
+- Plans are **bounded**. A plan that cannot be validated is not run.
+- Forensic events and status evidence are append-only.
+- Do not invent undocumented APIs, tables, routes, or environment variables.
+
+---
+
+## Verification
 
 ```bash
-# Show available sections and presets
-./scripts/context-bundle.sh --list
-
-# Core bundle
-./scripts/context-bundle.sh --preset core
-
-# Documentation or testing-focused bundles
-./scripts/context-bundle.sh --preset docs
-./scripts/context-bundle.sh --preset testing
+bash ci_gate.sh      # execution bridge v1 contract participation
 ```
 
-## Ecosystem Rules
+There is no GitHub workflow — `ci_gate.sh` is the gate. `cargo test` covers the Rust suites.
 
-- Keep cross-repo integrations explicit and documented
-- Do not invent undocumented APIs, tables, routes, or environment variables
-- If a runtime contract changes, update `doc/system/`, rebuild `doc/FLOSYSTEM.md`, and keep `CLAUDE.md` current
+---
 
-## Testing Expectations
+## Non-obvious
 
-- Run the repo's existing tests when available before claiming a change is complete
-- Keep documentation build and context-bundle scripts working
-- Expand test documentation in `doc/FLOSYSTEM.md` as exact suites and commands are cataloged
+- **`ci_gate.sh` resolves forge-contract-core by relative path** (`../../contracts/forge_contract_core`,
+  falling back to `forge-contract-core`) and preferentially uses that repo's `.venv/bin/python`.
+  A moved or renamed sibling checkout makes the gate fail loudly at the path check — and a missing
+  `.venv` silently downgrades it to bare `python3`. Confirm which interpreter it printed.
+- **FLO is a Rust CLI with no HTTP surface**, so it cannot be supervised as a local HTTP service.
+  Anything that needs to reach it over a port needs a different host process.
 
-## Change Protocol
-
-- Edit `doc/system/` part files, not the generated `doc/FLOSYSTEM.md`
-- Rebuild `doc/FLOSYSTEM.md` after documentation changes
-- Keep new docs honest about current implementation state
+```bash
+./scripts/context-bundle.sh --list
+```
