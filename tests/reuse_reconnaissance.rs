@@ -29,7 +29,7 @@ use fa_local::domain::reuse_reconnaissance::{
 };
 use fa_local::{
     ApprovalPosture, CapabilityId, CorrelationId, EnvironmentMode, ExecutionPlanId,
-    ExecutionState, RequestId, RequesterClass, RequesterId, RouteDecisionId, SideEffectClass,
+    ExecutionState, RequestId, RequesterId, RouteDecisionId, SideEffectClass,
 };
 
 const CAPABILITY_ID: &str = "77777777-7777-4777-8777-777777777777";

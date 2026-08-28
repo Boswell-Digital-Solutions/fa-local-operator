@@ -45,7 +45,8 @@
         "pattern_reimplementation"
       ],
       "prohibited_modes": [
-        "wholesale_fork"
+        "direct_dependency",
+        "vendoring"
       ],
       "blockers": [],
       "preserved_tests": [

@@ -5,7 +5,7 @@
 - Root: `tests/fixtures/fraa/tarcie_cp0/candidate-visible/`
 - Manifest profile: `FraaSealedCorpusManifest.v0`
 - Aggregate profile: `path-sha256-size-v1`
-- Bound aggregate SHA-256: `8f71ab007f845dd7c7c9734aacbceb802408ac20dee47a82e7ce59610d797d38`
+- Bound aggregate SHA-256: `a6d7d0c744b0e66cb822f9ae344369dd8d86b2a18d33d6bb4e8798c71330c6f8`
 
 The adapter rejects absolute paths, parent traversal, Windows-style separators, colon-bearing paths, symlinks, non-files, root escapes, duplicate members, oversized members, digest mismatches, and any member path containing `oracle` or `hidden_oracle`.
 

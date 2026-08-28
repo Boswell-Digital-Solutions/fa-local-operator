@@ -223,20 +223,24 @@ impl DeterministicReuseReconnaissanceEngine {
             ));
         }
 
-        let mut target_brief = None;
-        let mut donor_evidence = None;
-        let mut topology_options = None;
-        let mut constraints = None;
+        let mut target_brief: Option<TargetBriefDocument> = None;
+        let mut donor_evidence: Option<DonorEvidenceDocument> = None;
+        let mut topology_options: Option<TopologyOptionsDocument> = None;
+        let mut constraints: Option<ConstraintsDocument> = None;
 
         for document in documents {
             let value: Value = serde_json::from_str(&document.content)?;
-            let kind = value.get("kind").and_then(Value::as_str).ok_or_else(|| {
-                contract_invalid(format!(
-                    "candidate-visible document {} has no kind",
-                    document.relative_path
-                ))
-            })?;
-            match kind {
+            let kind = value
+                .get("kind")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    contract_invalid(format!(
+                        "candidate-visible document {} has no kind",
+                        document.relative_path
+                    ))
+                })?
+                .to_owned();
+            match kind.as_str() {
                 "target_brief" => set_once(
                     &mut target_brief,
                     serde_json::from_value(value)?,
