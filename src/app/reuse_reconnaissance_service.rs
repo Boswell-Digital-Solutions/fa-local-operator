@@ -40,9 +40,11 @@ impl ReuseReconnaissanceService {
         context: CoordinationContext,
     ) -> FaLocalResult<ReuseReconnaissanceRun> {
         input.validate_authority_boundary()?;
-        let capability = registry.capability_for(input.capability_id).ok_or_else(|| {
-            contract_invalid("FRAA input references an unregistered read capability")
-        })?;
+        let capability = registry
+            .capability_for(input.capability_id)
+            .ok_or_else(|| {
+                contract_invalid("FRAA input references an unregistered read capability")
+            })?;
         if capability.capability_type != CapabilityType::LocalFileRead
             || capability.side_effect_class != SideEffectClass::None
         {
