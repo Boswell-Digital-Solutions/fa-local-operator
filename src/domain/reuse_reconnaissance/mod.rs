@@ -264,21 +264,23 @@ impl DeterministicReuseReconnaissanceEngine {
                 other => {
                     return Err(contract_invalid(format!(
                         "unsupported candidate-visible document kind {other}"
-                    )))
+                    )));
                 }
             }
         }
 
-        let target = target_brief.ok_or_else(|| contract_invalid("missing target_brief document"))?;
-        let donors = donor_evidence
-            .ok_or_else(|| contract_invalid("missing donor_evidence document"))?;
+        let target =
+            target_brief.ok_or_else(|| contract_invalid("missing target_brief document"))?;
+        let donors =
+            donor_evidence.ok_or_else(|| contract_invalid("missing donor_evidence document"))?;
         let topologies = topology_options
             .ok_or_else(|| contract_invalid("missing topology_options document"))?;
-        let constraints = constraints
-            .ok_or_else(|| contract_invalid("missing constraints document"))?;
+        let constraints =
+            constraints.ok_or_else(|| contract_invalid("missing constraints document"))?;
 
         if target.application != input.target_application
-            || target.repository_posture != repository_posture_label(input.target_repository_posture)
+            || target.repository_posture
+                != repository_posture_label(input.target_repository_posture)
         {
             return Err(contract_invalid(
                 "target brief does not match FRAA input target binding",
@@ -486,9 +488,7 @@ fn select_topology(
             target.repository_posture != "new_private_application"
                 || option.supports_new_application
         })
-        .filter(|option| {
-            !target.separate_trust_actors_required || option.separate_trust_actors
-        })
+        .filter(|option| !target.separate_trust_actors_required || option.separate_trust_actors)
         .cloned()
         .collect::<Vec<_>>();
     eligible.sort_by(|left, right| {
@@ -512,7 +512,11 @@ fn set_once<T>(slot: &mut Option<T>, value: T, kind: &str) -> FaLocalResult<()> 
 }
 
 fn sorted_unique(values: Vec<String>) -> Vec<String> {
-    values.into_iter().collect::<BTreeSet<_>>().into_iter().collect()
+    values
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn repository_posture_label(posture: TargetRepositoryPosture) -> &'static str {
