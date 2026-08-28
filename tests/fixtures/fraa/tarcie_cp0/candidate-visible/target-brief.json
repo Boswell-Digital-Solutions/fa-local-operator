@@ -1,0 +1,20 @@
+{
+  "kind": "target_brief",
+  "application": "tarcie-reviewer",
+  "repository_posture": "new_private_application",
+  "separate_trust_actors_required": true,
+  "required_capabilities": [
+    "portable_windows_desktop",
+    "narrow_public_intake_gateway",
+    "encrypted_local_outbox",
+    "screenshot_admission",
+    "reviewer_scoped_enrollment"
+  ],
+  "authority": {
+    "topology_owner": "Forge",
+    "operator_surface": "Forge_Command",
+    "execution_owner": "fa-local-operator",
+    "mutation_owner": "forge-smithy",
+    "final_decision_owner": "Charlie Boswell"
+  }
+}

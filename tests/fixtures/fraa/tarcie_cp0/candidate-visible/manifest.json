@@ -1,0 +1,28 @@
+{
+  "schema_version": "FraaSealedCorpusManifest.v0",
+  "corpus_id": "tarcie-cp0-candidate-visible-v1",
+  "exposure_class": "candidate_visible",
+  "aggregate_profile": "path-sha256-size-v1",
+  "members": [
+    {
+      "path": "constraints.json",
+      "sha256": "dafa57fb8db0fbe8c3c604a70abbb05b7e07b598feb5c8b1b8f5338d3d3a7507",
+      "size_bytes": 385
+    },
+    {
+      "path": "donor-evidence.json",
+      "sha256": "120fcc5b707aa0ce5bd63efb69e10528fa427b2e9f275d25155ee55ad696f19b",
+      "size_bytes": 3530
+    },
+    {
+      "path": "target-brief.json",
+      "sha256": "6283b637ca9bd74b481695657ccdf2b981e2afa41d5882e43472c9bf12db46fc",
+      "size_bytes": 573
+    },
+    {
+      "path": "topology-options.json",
+      "sha256": "1061b2a27f2bc8dd4b3edc1e103557496fc13a0e8a7b99ac38ce21dd9278c6d3",
+      "size_bytes": 1196
+    }
+  ]
+}

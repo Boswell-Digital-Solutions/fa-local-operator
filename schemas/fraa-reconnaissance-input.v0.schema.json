@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://boswelldigitalsolutions.com/schemas/fa-local/fraa-reconnaissance-input.v0.schema.json",
+  "title": "FRAA Reconnaissance Input v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "capability_id",
+    "corpus_manifest_path",
+    "expected_corpus_aggregate_sha256",
+    "target_application",
+    "target_repository_posture",
+    "required_capabilities",
+    "prohibited_effects",
+    "authority"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "FraaReconnaissanceInput.v0"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "capability_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "corpus_manifest_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^(?!/)(?!.*\\.\\.)(?!.*\\\\)[a-zA-Z0-9._/-]+$"
+    },
+    "expected_corpus_aggregate_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "target_application": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "target_repository_posture": {
+      "enum": [
+        "new_private_application",
+        "existing_repository_refactor"
+      ]
+    },
+    "required_capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    },
+    "prohibited_effects": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_owner",
+        "network_allowed",
+        "model_allowed",
+        "repository_mutation_allowed",
+        "hidden_oracle_allowed"
+      ],
+      "properties": {
+        "execution_owner": {
+          "const": "fa-local-operator"
+        },
+        "network_allowed": {
+          "const": false
+        },
+        "model_allowed": {
+          "const": false
+        },
+        "repository_mutation_allowed": {
+          "const": false
+        },
+        "hidden_oracle_allowed": {
+          "const": false
+        }
+      }
+    }
+  }
+}

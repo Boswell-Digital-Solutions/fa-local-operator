@@ -1,0 +1,44 @@
+{
+  "kind": "topology_options",
+  "options": [
+    {
+      "topology_id": "extend_legacy_tarcie",
+      "repository_posture": "extend_existing_repository",
+      "supports_new_application": false,
+      "separate_trust_actors": false,
+      "complexity_rank": 1,
+      "deployables": [
+        "legacy-tarcie"
+      ],
+      "hard_blockers": [
+        "inherits_legacy_trust_and_license_conflicts"
+      ]
+    },
+    {
+      "topology_id": "new_private_monorepo_separate_deployables",
+      "repository_posture": "new_private_application",
+      "supports_new_application": true,
+      "separate_trust_actors": true,
+      "complexity_rank": 2,
+      "deployables": [
+        "apps/reviewer-desktop",
+        "services/intake-gateway",
+        "packages/contracts",
+        "packages/ui"
+      ],
+      "hard_blockers": []
+    },
+    {
+      "topology_id": "split_desktop_and_gateway_repositories",
+      "repository_posture": "new_private_application",
+      "supports_new_application": true,
+      "separate_trust_actors": true,
+      "complexity_rank": 3,
+      "deployables": [
+        "tarcie-reviewer-desktop",
+        "tarcie-intake-gateway"
+      ],
+      "hard_blockers": []
+    }
+  ]
+}

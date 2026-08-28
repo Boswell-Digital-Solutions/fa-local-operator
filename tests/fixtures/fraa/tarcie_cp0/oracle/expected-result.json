@@ -1,0 +1,185 @@
+{
+  "schema_version": "FraaReconnaissanceResult.v0",
+  "run_id": "fraa-tarcie-cp0-run-001",
+  "corpus_aggregate_sha256": "8f71ab007f845dd7c7c9734aacbceb802408ac20dee47a82e7ce59610d797d38",
+  "donor_candidates": [
+    {
+      "capability_id": "authorforge-encrypted-storage-pattern",
+      "source_repo": "Boswell-Digital-Solutions/Author-Forge",
+      "source_commit": "source-locked-in-tarcie-cp0",
+      "source_paths": [
+        "src-tauri/src/storage"
+      ],
+      "evidence_class": "source_review_and_tests",
+      "reuse_mode": "test_vector_reuse",
+      "disposition": "held",
+      "blockers": [
+        "adjacent_install_key_not_portable"
+      ],
+      "preserved_tests": [
+        "aes_gcm_round_trip",
+        "atomic_write_recovery"
+      ],
+      "rationale": "Behavior is proven, but 1 blocker(s) require resolution before test_vector_reuse."
+    },
+    {
+      "capability_id": "forge-command-reviewer-token-pattern",
+      "source_repo": "Boswell-Digital-Solutions/Forge_Command",
+      "source_commit": "source-locked-in-tarcie-cp0",
+      "source_paths": [
+        "src-tauri/src/auth"
+      ],
+      "evidence_class": "source_review_and_tests",
+      "reuse_mode": "interface_reuse",
+      "disposition": "held",
+      "blockers": [
+        "dedicated_reviewer_scope_required"
+      ],
+      "preserved_tests": [
+        "audience_rejection",
+        "expiry_rejection",
+        "issuer_scope"
+      ],
+      "rationale": "Behavior is proven, but 1 blocker(s) require resolution before interface_reuse."
+    },
+    {
+      "capability_id": "forge-gate-image-admission",
+      "source_repo": "Boswell-Digital-Solutions/forge-gate",
+      "source_commit": "source-locked-in-tarcie-cp0",
+      "source_paths": [
+        "src/image_admission"
+      ],
+      "evidence_class": "source_review_and_tests",
+      "reuse_mode": "interface_reuse",
+      "disposition": "qualified_candidate",
+      "blockers": [],
+      "preserved_tests": [
+        "digest_admission",
+        "image_size_limit",
+        "image_type_limit"
+      ],
+      "rationale": "Behavior is proven and interface_reuse is the highest-priority compatible reuse mode."
+    },
+    {
+      "capability_id": "forge-telemetry-exact-replay",
+      "source_repo": "Boswell-Digital-Solutions/forge-telemetry",
+      "source_commit": "source-locked-in-tarcie-cp0",
+      "source_paths": [
+        "src/canonical_json",
+        "src/outbox"
+      ],
+      "evidence_class": "source_review_and_tests",
+      "reuse_mode": "interface_reuse",
+      "disposition": "qualified_candidate",
+      "blockers": [],
+      "preserved_tests": [
+        "bounded_outbox",
+        "content_bound_receipt",
+        "exact_replay"
+      ],
+      "rationale": "Behavior is proven and interface_reuse is the highest-priority compatible reuse mode."
+    },
+    {
+      "capability_id": "legacy-tarcie-outbox",
+      "source_repo": "Boswell-Digital-Solutions/tarcie",
+      "source_commit": "6e1be2f51e7f708f0814bf86c78942a5d5187514",
+      "source_paths": [
+        "src-tauri/src/queue/jsonl.rs"
+      ],
+      "evidence_class": "pinned_ci_and_source_review",
+      "reuse_mode": "bounded_extraction",
+      "disposition": "held",
+      "blockers": [
+        "license_metadata_conflict",
+        "plaintext_portable_storage",
+        "windows_durability_unqualified"
+      ],
+      "preserved_tests": [
+        "interrupted_claim_recovery",
+        "no_overwrite_on_collision",
+        "partial_batch_preservation"
+      ],
+      "rationale": "Behavior is proven, but 3 blocker(s) require resolution before bounded_extraction."
+    }
+  ],
+  "critical_blockers": [
+    "adjacent_install_key_not_portable",
+    "contract_core_families_unadmitted",
+    "dedicated_reviewer_scope_required",
+    "license_metadata_conflict",
+    "live_networking_out_of_cp1",
+    "plaintext_portable_storage",
+    "portable_encryption_unqualified",
+    "screenshot_capture_unqualified",
+    "windows_durability_unqualified"
+  ],
+  "topology_alternatives": [
+    {
+      "topology_id": "extend_legacy_tarcie",
+      "repository_posture": "extend_existing_repository",
+      "hard_blockers": [
+        "inherits_legacy_trust_and_license_conflicts"
+      ],
+      "complexity_rank": 1,
+      "selected": false
+    },
+    {
+      "topology_id": "new_private_monorepo_separate_deployables",
+      "repository_posture": "new_private_application",
+      "hard_blockers": [],
+      "complexity_rank": 2,
+      "selected": true
+    },
+    {
+      "topology_id": "split_desktop_and_gateway_repositories",
+      "repository_posture": "new_private_application",
+      "hard_blockers": [],
+      "complexity_rank": 3,
+      "selected": false
+    }
+  ],
+  "selected_topology": "new_private_monorepo_separate_deployables",
+  "authority_boundary": {
+    "topology_owner": "Forge",
+    "operator_surface": "Forge_Command",
+    "execution_owner": "fa-local-operator",
+    "mutation_owner": "forge-smithy",
+    "final_decision_owner": "Charlie Boswell",
+    "network_allowed": false,
+    "model_allowed": false,
+    "repository_mutation_allowed": false
+  },
+  "draft_blueprint": {
+    "repository_posture": "new_private_application",
+    "deployables": [
+      "apps/reviewer-desktop",
+      "services/intake-gateway",
+      "packages/contracts",
+      "packages/ui"
+    ],
+    "donor_capability_ids": [
+      "authorforge-encrypted-storage-pattern",
+      "forge-command-reviewer-token-pattern",
+      "forge-gate-image-admission",
+      "forge-telemetry-exact-replay",
+      "legacy-tarcie-outbox"
+    ],
+    "verification_obligations": [
+      "clean_windows_build",
+      "dependency_license_security_privacy_review",
+      "path_level_provenance",
+      "qre_delta",
+      "tar_ux_01"
+    ],
+    "prohibited_effects": [
+      "dataforge_write",
+      "forge_memory_admission",
+      "hidden_oracle_access",
+      "model_calls",
+      "network_calls",
+      "repository_mutation",
+      "smithy_mutation"
+    ]
+  },
+  "result_hash": "3776000353023bfd061cac3450f47eb36883b8914fab46edcd2b4a91acbee84b"
+}

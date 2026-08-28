@@ -6,6 +6,7 @@ pub mod guards;
 pub mod policy;
 pub mod posture;
 pub mod requester_trust;
+pub mod reuse_reconnaissance;
 pub mod review;
 pub mod routing;
 pub mod shared;

@@ -1,0 +1,130 @@
+{
+  "kind": "donor_evidence",
+  "donors": [
+    {
+      "capability_id": "legacy-tarcie-outbox",
+      "source_repo": "Boswell-Digital-Solutions/tarcie",
+      "source_commit": "6e1be2f51e7f708f0814bf86c78942a5d5187514",
+      "source_paths": [
+        "src-tauri/src/queue/jsonl.rs"
+      ],
+      "behavior_proven": true,
+      "evidence_class": "pinned_ci_and_source_review",
+      "allowed_modes": [
+        "bounded_extraction",
+        "pattern_reimplementation",
+        "test_vector_reuse"
+      ],
+      "prohibited_modes": [
+        "direct_dependency",
+        "vendoring"
+      ],
+      "blockers": [
+        "license_metadata_conflict",
+        "plaintext_portable_storage",
+        "windows_durability_unqualified"
+      ],
+      "preserved_tests": [
+        "interrupted_claim_recovery",
+        "partial_batch_preservation",
+        "no_overwrite_on_collision"
+      ]
+    },
+    {
+      "capability_id": "forge-telemetry-exact-replay",
+      "source_repo": "Boswell-Digital-Solutions/forge-telemetry",
+      "source_commit": "source-locked-in-tarcie-cp0",
+      "source_paths": [
+        "src/outbox",
+        "src/canonical_json"
+      ],
+      "behavior_proven": true,
+      "evidence_class": "source_review_and_tests",
+      "allowed_modes": [
+        "interface_reuse",
+        "pattern_reimplementation"
+      ],
+      "prohibited_modes": [
+        "wholesale_fork"
+      ],
+      "blockers": [],
+      "preserved_tests": [
+        "exact_replay",
+        "content_bound_receipt",
+        "bounded_outbox"
+      ]
+    },
+    {
+      "capability_id": "forge-gate-image-admission",
+      "source_repo": "Boswell-Digital-Solutions/forge-gate",
+      "source_commit": "source-locked-in-tarcie-cp0",
+      "source_paths": [
+        "src/image_admission"
+      ],
+      "behavior_proven": true,
+      "evidence_class": "source_review_and_tests",
+      "allowed_modes": [
+        "interface_reuse",
+        "test_vector_reuse"
+      ],
+      "prohibited_modes": [
+        "direct_dependency"
+      ],
+      "blockers": [],
+      "preserved_tests": [
+        "image_type_limit",
+        "image_size_limit",
+        "digest_admission"
+      ]
+    },
+    {
+      "capability_id": "authorforge-encrypted-storage-pattern",
+      "source_repo": "Boswell-Digital-Solutions/Author-Forge",
+      "source_commit": "source-locked-in-tarcie-cp0",
+      "source_paths": [
+        "src-tauri/src/storage"
+      ],
+      "behavior_proven": true,
+      "evidence_class": "source_review_and_tests",
+      "allowed_modes": [
+        "pattern_reimplementation",
+        "test_vector_reuse"
+      ],
+      "prohibited_modes": [
+        "direct_dependency"
+      ],
+      "blockers": [
+        "adjacent_install_key_not_portable"
+      ],
+      "preserved_tests": [
+        "aes_gcm_round_trip",
+        "atomic_write_recovery"
+      ]
+    },
+    {
+      "capability_id": "forge-command-reviewer-token-pattern",
+      "source_repo": "Boswell-Digital-Solutions/Forge_Command",
+      "source_commit": "source-locked-in-tarcie-cp0",
+      "source_paths": [
+        "src-tauri/src/auth"
+      ],
+      "behavior_proven": true,
+      "evidence_class": "source_review_and_tests",
+      "allowed_modes": [
+        "interface_reuse",
+        "pattern_reimplementation"
+      ],
+      "prohibited_modes": [
+        "direct_dependency"
+      ],
+      "blockers": [
+        "dedicated_reviewer_scope_required"
+      ],
+      "preserved_tests": [
+        "issuer_scope",
+        "expiry_rejection",
+        "audience_rejection"
+      ]
+    }
+  ]
+}

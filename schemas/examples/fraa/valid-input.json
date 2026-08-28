@@ -1,0 +1,32 @@
+{
+  "schema_version": "FraaReconnaissanceInput.v0",
+  "run_id": "fraa-tarcie-cp0-run-001",
+  "capability_id": "77777777-7777-4777-8777-777777777777",
+  "corpus_manifest_path": "manifest.json",
+  "expected_corpus_aggregate_sha256": "8f71ab007f845dd7c7c9734aacbceb802408ac20dee47a82e7ce59610d797d38",
+  "target_application": "tarcie-reviewer",
+  "target_repository_posture": "new_private_application",
+  "required_capabilities": [
+    "portable_windows_desktop",
+    "narrow_public_intake_gateway",
+    "encrypted_local_outbox",
+    "screenshot_admission",
+    "reviewer_scoped_enrollment"
+  ],
+  "prohibited_effects": [
+    "network_calls",
+    "model_calls",
+    "repository_mutation",
+    "dataforge_write",
+    "forge_memory_admission",
+    "smithy_mutation",
+    "hidden_oracle_access"
+  ],
+  "authority": {
+    "execution_owner": "fa-local-operator",
+    "network_allowed": false,
+    "model_allowed": false,
+    "repository_mutation_allowed": false,
+    "hidden_oracle_allowed": false
+  }
+}

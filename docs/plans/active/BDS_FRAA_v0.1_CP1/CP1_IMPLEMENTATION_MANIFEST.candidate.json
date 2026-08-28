@@ -1,0 +1,17 @@
+{
+  "schema": "BDS.CandidateImplementationManifest.v1",
+  "plan_id": "BDS-FRAA-v0.1",
+  "work_package": "CP1/WP01",
+  "baseline": "690434006b2fc726d31eea0d57a1fd4c7b8d1363",
+  "status": "candidate_not_merged",
+  "runtime_effects": {
+    "network_calls": false,
+    "model_calls": false,
+    "dataforge_write": false,
+    "forge_memory_admission": false,
+    "contract_core_admission": false,
+    "smithy_mutation": false,
+    "repository_mutation_by_runtime": false
+  },
+  "verification_status": "pending_repository_ci_or_clean_reproduction"
+}
