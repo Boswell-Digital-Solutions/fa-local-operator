@@ -1,0 +1,36 @@
+BDS-FRAA-v0.1 CP1/WP01 AUTHORIZATION RECORD
+
+Operator authorization utterance: "Authorized"
+Interpreted against the immediately preceding eligible decision:
+BDS-FRAA-v0.1 CP1/WP01 — FA Local Sealed-Corpus Reuse Reconnaissance only.
+
+Authorized at: 2026-08-28T02:39:28-04:00
+Decision owner: Charlie Boswell / Sole BDS Operator
+
+Bound plan_set_manifest.json SHA-256:
+843af7faa3b11aaeeb5d0b352ffdb6c47da2525f3577628832d93377cc40c083
+
+Bound BR1 receipt self-hash:
+sha256:8bd48163b9334c94895bbb0972547f92f6ea89329c4c1b058de187e13c21186c
+
+Pinned repository and baseline:
+Boswell-Digital-Solutions/fa-local-operator@690434006b2fc726d31eea0d57a1fd4c7b8d1363
+
+Authorized scope:
+- explicit local_file_read capability type with side_effect_class none;
+- repo-local FRAA input/result schemas and examples;
+- root-confined candidate-visible sealed-corpus reader;
+- deterministic donor/topology reconnaissance over frozen Tarcie CP0 fixtures;
+- independent hidden-oracle comparison in tests;
+- documentation and evidence under docs/plans/active/BDS_FRAA_v0.1_CP1/**;
+- branch and candidate pull request.
+
+Prohibited:
+- live repository calls;
+- network or model calls;
+- DataForge writes;
+- forge-memory or Contract Core admission;
+- Smithy mutation;
+- component promotion;
+- workflow, credential, endpoint, or deployment change;
+- merge, release, CP2, or later work.

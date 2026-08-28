@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://boswelldigitalsolutions.com/schemas/fa-local/fraa-reconnaissance-result.v0.schema.json",
+  "title": "FRAA Reconnaissance Result v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "corpus_aggregate_sha256",
+    "donor_candidates",
+    "critical_blockers",
+    "topology_alternatives",
+    "selected_topology",
+    "authority_boundary",
+    "draft_blueprint",
+    "result_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "FraaReconnaissanceResult.v0"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "corpus_aggregate_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "donor_candidates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "capability_id",
+          "source_repo",
+          "source_commit",
+          "source_paths",
+          "evidence_class",
+          "reuse_mode",
+          "disposition",
+          "blockers",
+          "preserved_tests",
+          "rationale"
+        ],
+        "properties": {
+          "capability_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "source_repo": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+          },
+          "source_commit": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "source_paths": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          },
+          "evidence_class": {
+            "enum": [
+              "pinned_ci_and_source_review",
+              "source_review_and_tests",
+              "source_review_only",
+              "unproven"
+            ]
+          },
+          "reuse_mode": {
+            "enum": [
+              "direct_dependency",
+              "vendoring",
+              "bounded_extraction",
+              "interface_reuse",
+              "test_vector_reuse",
+              "pattern_reimplementation",
+              "service_consumption",
+              "hold",
+              "reject"
+            ]
+          },
+          "disposition": {
+            "enum": [
+              "qualified_candidate",
+              "held",
+              "rejected"
+            ]
+          },
+          "blockers": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "preserved_tests": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        }
+      }
+    },
+    "critical_blockers": {
+      "type": "array",
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    },
+    "topology_alternatives": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "topology_id",
+          "repository_posture",
+          "hard_blockers",
+          "complexity_rank",
+          "selected"
+        ],
+        "properties": {
+          "topology_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "repository_posture": {
+            "enum": [
+              "new_private_application",
+              "existing_repository_refactor",
+              "extend_existing_repository"
+            ]
+          },
+          "hard_blockers": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "complexity_rank": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "selected": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "selected_topology": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "authority_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "topology_owner",
+        "operator_surface",
+        "execution_owner",
+        "mutation_owner",
+        "final_decision_owner",
+        "network_allowed",
+        "model_allowed",
+        "repository_mutation_allowed"
+      ],
+      "properties": {
+        "topology_owner": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "operator_surface": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "execution_owner": {
+          "const": "fa-local-operator"
+        },
+        "mutation_owner": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "final_decision_owner": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "network_allowed": {
+          "const": false
+        },
+        "model_allowed": {
+          "const": false
+        },
+        "repository_mutation_allowed": {
+          "const": false
+        }
+      }
+    },
+    "draft_blueprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_posture",
+        "deployables",
+        "donor_capability_ids",
+        "verification_obligations",
+        "prohibited_effects"
+      ],
+      "properties": {
+        "repository_posture": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "deployables": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "donor_capability_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "verification_obligations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "prohibited_effects": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      }
+    },
+    "result_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

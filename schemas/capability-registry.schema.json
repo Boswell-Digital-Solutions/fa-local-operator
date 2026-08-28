@@ -96,6 +96,7 @@
           "capability_type": {
             "type": "string",
             "enum": [
+              "local_file_read",
               "local_file_write",
               "local_db_mutation",
               "local_process_spawn",

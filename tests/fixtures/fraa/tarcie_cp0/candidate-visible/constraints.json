@@ -1,0 +1,16 @@
+{
+  "kind": "constraints",
+  "critical_blockers": [
+    "contract_core_families_unadmitted",
+    "live_networking_out_of_cp1",
+    "portable_encryption_unqualified",
+    "screenshot_capture_unqualified"
+  ],
+  "verification_obligations": [
+    "path_level_provenance",
+    "dependency_license_security_privacy_review",
+    "clean_windows_build",
+    "tar_ux_01",
+    "qre_delta"
+  ]
+}
