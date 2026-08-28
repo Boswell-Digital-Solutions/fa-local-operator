@@ -15,8 +15,8 @@ use fa_local::domain::capabilities::{
     CapabilityRegistry, CapabilityRegistryLoader, CapabilityType,
 };
 use fa_local::domain::execution::{
-    CancellationPolicy, CompletionPolicy, ExecutionPlan, ExecutionPlanStep,
-    ExecutionPlanValidator, ExecutionRequest, RequestIntent,
+    CancellationPolicy, CompletionPolicy, ExecutionPlan, ExecutionPlanStep, ExecutionPlanValidator,
+    ExecutionRequest, RequestIntent,
 };
 use fa_local::domain::policy::PolicyArtifactLoader;
 use fa_local::domain::posture::{
@@ -28,8 +28,8 @@ use fa_local::domain::reuse_reconnaissance::{
     ReuseReconnaissanceResult,
 };
 use fa_local::{
-    ApprovalPosture, CapabilityId, CorrelationId, EnvironmentMode, ExecutionPlanId,
-    ExecutionState, RequestId, RequesterId, RouteDecisionId, SideEffectClass,
+    ApprovalPosture, CapabilityId, CorrelationId, EnvironmentMode, ExecutionPlanId, ExecutionState,
+    RequestId, RequesterId, RouteDecisionId, SideEffectClass,
 };
 
 const CAPABILITY_ID: &str = "77777777-7777-4777-8777-777777777777";
@@ -43,8 +43,7 @@ fn parse_uuid(value: &str) -> Uuid {
 }
 
 fn fraa_fixture_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/fraa/tarcie_cp0")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fraa/tarcie_cp0")
 }
 
 fn candidate_visible_root() -> PathBuf {
@@ -53,8 +52,7 @@ fn candidate_visible_root() -> PathBuf {
 
 fn load_input() -> ReuseReconnaissanceInput {
     let raw = std::fs::read_to_string(
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("schemas/examples/fraa/valid-input.json"),
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("schemas/examples/fraa/valid-input.json"),
     )
     .unwrap();
     let value: Value = serde_json::from_str(&raw).unwrap();
@@ -62,29 +60,24 @@ fn load_input() -> ReuseReconnaissanceInput {
 }
 
 fn load_registry() -> CapabilityRegistry {
-    let value = support::load_fixture_json(
-        "valid",
-        "capability-registry-local-file-read.json",
-    );
+    let value = support::load_fixture_json("valid", "capability-registry-local-file-read.json");
     CapabilityRegistryLoader::load_contract_value(&value).unwrap()
 }
 
-fn admitted_route(input: &ReuseReconnaissanceInput, registry: &CapabilityRegistry) -> fa_local::domain::routing::RouteDecision {
-    let mut requester_value =
-        support::load_fixture_json("valid", "requester-trust-basic.json");
-    requester_value["requester_id"] = Value::String(
-        "11111111-1111-4111-8111-111111111111".to_owned(),
-    );
-    requester_value["requester_class"] =
-        Value::String("development_test_surface".to_owned());
+fn admitted_route(
+    input: &ReuseReconnaissanceInput,
+    registry: &CapabilityRegistry,
+) -> fa_local::domain::routing::RouteDecision {
+    let mut requester_value = support::load_fixture_json("valid", "requester-trust-basic.json");
+    requester_value["requester_id"] =
+        Value::String("11111111-1111-4111-8111-111111111111".to_owned());
+    requester_value["requester_class"] = Value::String("development_test_surface".to_owned());
     requester_value["environment_mode"] = Value::String("test_harness".to_owned());
     let requester = RequesterTrustEngine::load_contract_value(&requester_value).unwrap();
 
     let mut policy_value = support::load_fixture_json("valid", "policy-artifact-basic.json");
-    policy_value["scope"]["environment_modes"] =
-        serde_json::json!(["test_harness"]);
-    policy_value["capability_rules"][0]["capability_id"] =
-        Value::String(CAPABILITY_ID.to_owned());
+    policy_value["scope"]["environment_modes"] = serde_json::json!(["test_harness"]);
+    policy_value["capability_rules"][0]["capability_id"] = Value::String(CAPABILITY_ID.to_owned());
     policy_value["capability_rules"][0]["allowed_requester_classes"] =
         serde_json::json!(["development_test_surface"]);
     policy_value["capability_rules"][0]["allowed_side_effect_classes"] =
@@ -101,9 +94,7 @@ fn admitted_route(input: &ReuseReconnaissanceInput, registry: &CapabilityRegistr
     let request = ExecutionRequest {
         request_id: RequestId::from_uuid(parse_uuid(REQUEST_ID)),
         correlation_id: CorrelationId::from_uuid(parse_uuid(CORRELATION_ID)),
-        requester_id: RequesterId::from_uuid(
-            parse_uuid("11111111-1111-4111-8111-111111111111"),
-        ),
+        requester_id: RequesterId::from_uuid(parse_uuid("11111111-1111-4111-8111-111111111111")),
         environment_mode: EnvironmentMode::TestHarness,
         requested_capability_id: input.capability_id,
         requested_side_effect_class: SideEffectClass::None,
@@ -112,12 +103,8 @@ fn admitted_route(input: &ReuseReconnaissanceInput, registry: &CapabilityRegistr
         requested_at: Utc.with_ymd_and_hms(2026, 8, 28, 6, 40, 0).unwrap(),
     };
 
-    let admitted = CapabilityRegistryLoader::admit_execution_request(
-        registry,
-        &policy,
-        &requester,
-        &request,
-    );
+    let admitted =
+        CapabilityRegistryLoader::admit_execution_request(registry, &policy, &requester, &request);
     assert!(admitted.is_ok());
 
     ApprovalPostureResolver::resolve(
@@ -184,8 +171,7 @@ fn repo_local_fraa_input_and_result_contracts_are_fail_closed() {
 
     let mut invalid_input_value: Value = serde_json::from_str(
         &std::fs::read_to_string(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("schemas/examples/fraa/valid-input.json"),
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("schemas/examples/fraa/valid-input.json"),
         )
         .unwrap(),
     )
@@ -194,8 +180,7 @@ fn repo_local_fraa_input_and_result_contracts_are_fail_closed() {
     assert!(ReuseReconnaissanceInput::load_contract_value(&invalid_input_value).is_err());
 
     let oracle_raw =
-        std::fs::read_to_string(fraa_fixture_root().join("oracle/expected-result.json"))
-            .unwrap();
+        std::fs::read_to_string(fraa_fixture_root().join("oracle/expected-result.json")).unwrap();
     let oracle_value: Value = serde_json::from_str(&oracle_raw).unwrap();
     assert!(ReuseReconnaissanceResult::load_contract_value(&oracle_value).is_ok());
 
@@ -339,8 +324,7 @@ fn fa_local_runs_the_authorized_six_step_plan_and_matches_hidden_oracle() {
     // The candidate runtime receives only candidate-visible documents. The test
     // harness reads the sibling oracle after the result is frozen.
     let oracle_raw =
-        std::fs::read_to_string(fraa_fixture_root().join("oracle/expected-result.json"))
-            .unwrap();
+        std::fs::read_to_string(fraa_fixture_root().join("oracle/expected-result.json")).unwrap();
     let oracle_value: Value = serde_json::from_str(&oracle_raw).unwrap();
     let oracle = ReuseReconnaissanceResult::load_contract_value(&oracle_value).unwrap();
     assert_eq!(run.result, oracle);
@@ -385,10 +369,7 @@ struct ScratchDir {
 
 impl ScratchDir {
     fn new(label: &str) -> Self {
-        let path = std::env::temp_dir().join(format!(
-            "fa-local-fraa-{label}-{}",
-            Uuid::new_v4()
-        ));
+        let path = std::env::temp_dir().join(format!("fa-local-fraa-{label}-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&path).unwrap();
         Self { path }
     }
