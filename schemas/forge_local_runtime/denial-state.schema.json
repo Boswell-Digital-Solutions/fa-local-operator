@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://boswelldigitalsolutions.com/schemas/forge-local-runtime/denial-state.schema.json",
+  "title": "Forge Local Runtime Denial State",
+  "description": "Shared denial-state vocabulary for Forge Local Runtime services.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "state",
+    "reason_class",
+    "scope",
+    "denied_by_contract_or_policy",
+    "remediable",
+    "review_path_available",
+    "operator_visible_summary",
+    "last_updated_at"
+  ],
+  "properties": {
+    "state": {
+      "type": "string",
+      "const": "denied"
+    },
+    "reason_class": {
+      "type": "string",
+      "enum": [
+        "unknown_requester",
+        "untrusted_requester",
+        "missing_policy",
+        "policy_denied",
+        "capability_not_admitted",
+        "contract_invalid",
+        "integrity_failed",
+        "dependency_unavailable",
+        "privacy_scope_violation",
+        "review_required",
+        "unsupported_route",
+        "disabled_by_operator"
+      ]
+    },
+    "scope": {
+      "type": "string",
+      "enum": [
+        "request",
+        "capability",
+        "route",
+        "service",
+        "artifact",
+        "operation"
+      ]
+    },
+    "denied_by_contract_or_policy": {
+      "type": "string",
+      "enum": [
+        "contract",
+        "policy",
+        "contract_and_policy",
+        "runtime_safety"
+      ]
+    },
+    "remediable": {
+      "type": "boolean"
+    },
+    "review_path_available": {
+      "type": "boolean"
+    },
+    "operator_visible_summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "service_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "details_redacted": {
+      "type": "boolean",
+      "default": true
+    },
+    "last_updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

@@ -11,6 +11,10 @@
 //!
 //! # Check FA Local contract posture and emit a structured status report
 //! fa-local-run status
+//!
+//! # Emit FA Local's status projected onto forge-local-systems-runtime's
+//! # canonical service-status schema (FC-LTA-P007)
+//! fa-local-run canonical-status
 //! ```
 //!
 //! Exit codes:
@@ -21,6 +25,7 @@ use std::io::{self, Read};
 use std::process;
 
 use fa_local::app::intake_service::IntakeService;
+use fa_local::domain::service_status;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -57,10 +62,7 @@ fn main() {
                 Ok(result) => {
                     println!("{{");
                     println!("  \"status\": \"valid\",");
-                    println!(
-                        "  \"request_id\": \"{}\",",
-                        result.request.request_id
-                    );
+                    println!("  \"request_id\": \"{}\",", result.request.request_id);
                     println!(
                         "  \"correlation_id\": \"{}\",",
                         result.request.correlation_id
@@ -83,17 +85,37 @@ fn main() {
         }
 
         Some("status") => {
+            let facts = service_status::operational_facts();
             println!("{{");
             println!("  \"service\": \"fa-local-operator\",");
             println!("  \"version\": \"{VERSION}\",");
-            println!("  \"posture\": \"policy_first_admission\",");
-            println!("  \"execution_enabled\": false,");
+            println!("  \"execution_enabled\": {},", facts.execution_enabled);
+            println!("  \"writeback_wired\": {},", facts.writeback_wired);
             println!(
-                "  \"writeback_wired\": false,"
+                "  \"note\": \"bounded local execution consumer — execution bridge v1 pending Phase X4 wiring\""
             );
-            println!("  \"note\": \"bounded local execution consumer — execution bridge v1 pending Phase X4 wiring\"");
             println!("}}");
             process::exit(0);
+        }
+
+        Some("canonical-status") => {
+            match service_status::build_canonical_service_status_envelope() {
+                Ok(envelope) => {
+                    let exit_code = if envelope["state"] == "ready" { 0 } else { 1 };
+                    println!(
+                        "{}",
+                        serde_json::to_string(&envelope).expect("envelope serializes")
+                    );
+                    process::exit(exit_code);
+                }
+                Err(e) => {
+                    eprintln!("{{");
+                    eprintln!("  \"status\": \"error\",");
+                    eprintln!("  \"error\": \"{e}\"");
+                    eprintln!("}}");
+                    process::exit(1);
+                }
+            }
         }
 
         Some("--version") | Some("-V") => {
@@ -108,8 +130,15 @@ fn main() {
             eprintln!("  fa-local-run <COMMAND>");
             eprintln!("");
             eprintln!("COMMANDS:");
-            eprintln!("  validate    Validate a bounded execution request against FA Local contract schema");
-            eprintln!("  status      Emit a structured FA Local posture and readiness report");
+            eprintln!(
+                "  validate          Validate a bounded execution request against FA Local contract schema"
+            );
+            eprintln!(
+                "  status            Emit a structured FA Local posture and readiness report"
+            );
+            eprintln!(
+                "  canonical-status  Emit FA Local's status on forge-local-systems-runtime's canonical schema (FC-LTA-P007)"
+            );
             eprintln!("");
             eprintln!("OPTIONS FOR validate:");
             eprintln!("  --request <FILE>   Read request JSON from file (default: stdin)");

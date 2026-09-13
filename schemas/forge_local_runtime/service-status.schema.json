@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://boswelldigitalsolutions.com/schemas/forge-local-runtime/service-status.schema.json",
+  "title": "Forge Local Runtime Service Status",
+  "description": "Shared service-status envelope for Forge Local Runtime services.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "service_id",
+    "service_class",
+    "state",
+    "operator_visible_message",
+    "last_updated_at"
+  ],
+  "properties": {
+    "service_id": {
+      "type": "string",
+      "enum": [
+        "df-local-foundation",
+        "neuronforge-local",
+        "cortex",
+        "fa-local"
+      ]
+    },
+    "service_class": {
+      "type": "string",
+      "enum": [
+        "substrate",
+        "inference",
+        "file_intelligence",
+        "execution"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "degraded",
+        "denied",
+        "unavailable",
+        "stale",
+        "partial_success",
+        "review_required",
+        "waiting_explicit_approval"
+      ]
+    },
+    "degraded_subtype": {
+      "type": "string",
+      "enum": [
+        "degraded",
+        "stale",
+        "partial_success",
+        "unavailable_dependency_block",
+        "degraded_pre_start",
+        "degraded_in_flight",
+        "degraded_fallback_equivalent",
+        "degraded_fallback_limited",
+        "degraded_partial",
+        "migration_blocked",
+        "restore_constrained",
+        "integrity_warning",
+        "integrity_failed",
+        "extraction_incomplete",
+        "re_prep_required",
+        "admitted_not_started",
+        "waiting_explicit_approval",
+        "completed_with_constraints"
+      ]
+    },
+    "denied_state": {
+      "$ref": "./denial-state.schema.json"
+    },
+    "readiness_summary_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "readiness_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "readiness_class",
+        "summary"
+      ],
+      "properties": {
+        "readiness_class": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "ready_with_constraints",
+            "degraded",
+            "not_ready"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      }
+    },
+    "operator_visible_message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "details_redacted": {
+      "type": "boolean",
+      "default": true
+    },
+    "last_updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": { "const": "degraded" }
+        },
+        "required": ["state"]
+      },
+      "then": {
+        "required": ["degraded_subtype"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": { "const": "denied" }
+        },
+        "required": ["state"]
+      },
+      "then": {
+        "required": ["denied_state"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "ready",
+              "unavailable",
+              "stale",
+              "partial_success",
+              "review_required",
+              "waiting_explicit_approval"
+            ]
+          }
+        },
+        "required": ["state"]
+      },
+      "then": {
+        "not": {
+          "required": ["denied_state"]
+        }
+      }
+    }
+  ]
+}
