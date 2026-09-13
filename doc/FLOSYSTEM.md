@@ -274,11 +274,23 @@ All currently planned baseline contracts now exist in schema-backed form.
 
 Phase X4 added:
 - `IntakeService` in `src/app/intake_service.rs` — the schema-validated entry point for external execution requests. It wraps `ExecutionRequest::load_contract_value()` and provides both `validate_request(&Value)` and `validate_request_bytes(&[u8])` convenience methods.
-- `fa-local-run` CLI binary (`src/bin/fa_local_run.rs`) — a synchronous binary providing `validate` and `status` subcommands for local operator use.
+- `fa-local-run` CLI binary (`src/bin/fa_local_run.rs`) — a synchronous binary providing `validate` and `status` subcommands for local operator use, plus `canonical-status` (FC-LTA-P007's external service-status projection, see below).
 
 There is no persistence layer, no concrete forensic export sink, and no multi-adapter dispatch or runtime selection surface in the current baseline. The Nmap preflight adapter is bounded to a declared `local_process_spawn` capability and execution plan, does not run scans, does not accept free-form arguments, and does not create a networked daemon surface. Missing `nmap` runtime truth can be represented as a degraded execution status and recorded through the existing minimized forensic-event path. The review-package emitter remains intentionally bounded to the two current review postures only and does not introduce generic workflow behavior beyond `review_required` and `explicit_operator_approval`.
 
 The execution bridge writeback path (`DfLocalAdapter::post_execution_status_event`) is present as a typed stub — the DataForge Local staging endpoint is pending Phase X4 completion on the DataForge side.
+
+## External service-status projection (FC-LTA-P007)
+
+FA Local exposes this projection through `domain::service_status::build_canonical_service_status_envelope()`, reached from the `fa-local-run canonical-status` CLI subcommand. Forge_Command reads it the same way it already reads Cortex's projection: as a CLI subprocess. It runs the compiled `fa-local-run` binary with the `canonical-status` argument and parses the one line of JSON on stdout. FA Local adds no HTTP surface for this — it stays a CLI binary only, consistent with `CLAUDE.md`'s "no HTTP surface" doctrine.
+
+FA Local has no existing whole-service status computation to project from — its only status concept, `domain::status::ExecutionStatus`, is per-request. `domain::service_status::operational_facts()` is the single real source of truth this projection and the plain `status` subcommand both read: `execution_enabled: false` (no `execute` subcommand exists in `fa-local-run` yet) and `writeback_wired: false` (`DfLocalAdapter::post_execution_status_event` unconditionally returns `WritebackNotWired` until DataForge Local's Phase X4 endpoint exists). Both facts are structural — the absence of code, not a runtime probe.
+
+The plain `status` subcommand's old `posture: "policy_first_admission"` field was never derived from a real check and has been removed; it never appears in the canonical projection either.
+
+Given both real facts are currently false, the canonical projection reports `state: "degraded"` with `degraded_subtype: "degraded_pre_start"` — the execution bridge has not started, not that something running has failed. FA Local's own `DegradedSubtype::DegradedPreStart` (`src/domain/shared/vocabulary.rs`) serializes to exactly this canonical value, so no remapping table is needed here (unlike Cortex, whose internal `degraded_subtype` vocabulary differs from the canonical one).
+
+The external schema is vendored at `schemas/forge_local_runtime/`, kept separate from FA Local's own 12-member `SchemaName` registry (`src/domain/shared/schema.rs`) because it is a different, external, `additionalProperties: false` contract owned by `forge-local-systems-runtime`, not by FA Local. The vendored `service-status.schema.json`'s `denied_state` field `$ref`s `./denial-state.schema.json`; because the `jsonschema` crate resolves every `$ref` eagerly at validator-build time (unlike Python's `jsonschema`, which resolves lazily per validated branch) and this crate has no `resolve-http` feature enabled, the denial-state resource is registered in-memory at its declared `$id` URI rather than fetched over the network.
 
 ## Supporting references
 
@@ -306,6 +318,8 @@ This section is grounded in:
 - `src/app/review_service.rs`
 - `src/app/routing_service.rs`
 - `src/bin/fa_local_run.rs`
+- `src/domain/service_status/mod.rs`
+- `schemas/forge_local_runtime/service-status.schema.json`
 - `docs/fa_local_codex_build_plan_v_1.md`
 
 ---

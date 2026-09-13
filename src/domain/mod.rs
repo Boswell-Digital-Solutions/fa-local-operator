@@ -9,5 +9,6 @@ pub mod requester_trust;
 pub mod reuse_reconnaissance;
 pub mod review;
 pub mod routing;
+pub mod service_status;
 pub mod shared;
 pub mod status;

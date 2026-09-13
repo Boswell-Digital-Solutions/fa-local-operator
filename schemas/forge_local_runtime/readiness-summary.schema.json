@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://boswelldigitalsolutions.com/schemas/forge-local-runtime/readiness-summary.schema.json",
+  "title": "Forge Local Runtime Readiness Summary",
+  "description": "Shared readiness summary for Forge Local Runtime services.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "service_id",
+    "readiness_class",
+    "summary",
+    "last_updated_at"
+  ],
+  "properties": {
+    "service_id": {
+      "type": "string",
+      "enum": [
+        "df-local-foundation",
+        "neuronforge-local",
+        "cortex",
+        "fa-local"
+      ]
+    },
+    "readiness_class": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "ready_with_constraints",
+        "degraded",
+        "not_ready"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "blocking_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "dependency_unavailable",
+          "migration_blocked",
+          "integrity_failed",
+          "policy_missing",
+          "approval_required",
+          "capacity_limited",
+          "stale_artifacts",
+          "route_unavailable"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "details_redacted": {
+      "type": "boolean",
+      "default": true
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "last_updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
