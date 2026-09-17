@@ -118,6 +118,7 @@ It currently includes:
 - bounded review-package emission workflow for coherent review-required and explicit-approval paths
 - capability-scoped adapter registry resolving one runtime-selected adapter per admitted route at dispatch time; fails closed on duplicate capability registration and reports a missing adapter as a truthful degraded status, not a fabricated success
 - bounded forensic recorder/export workflow over already-known execution truth
+- append-only local JSONL forensic export sink, one compact record per line, reporting an unavailable sink as a fail-closed error rather than dropping the event
 - pure execution-status validation and construction helpers
 - pure review-package validation and construction helpers
 - pure forensic-event validation and construction helpers
@@ -129,7 +130,7 @@ What is still intentionally not delivered:
 - broad cross-service adapter integrations
 - external adapter-backed execution coordination beyond the current bounded delivery seam
 - CLI, daemon, or API surfaces
-- forensic persistence layer or concrete export sink
+- SQLite-backed queryable forensic storage
 - persistence layer
 
 This is the current bounded baseline, not a claim that later execution-facing phases are already delivered.

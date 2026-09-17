@@ -2,4 +2,4 @@
 
 FA Local forensics are intended to be minimal, locally auditable, and content-sparing.
 
-The scaffold creates the module boundary for forensic work but does not yet persist events. SQLite-backed storage and JSONL export remain planned follow-up work.
+FA Local exports forensic events through an append-only local JSONL sink (`src/adapters/exports/jsonl_forensic_export.rs`), one compact record per line. SQLite-backed queryable storage remains planned follow-up work.
