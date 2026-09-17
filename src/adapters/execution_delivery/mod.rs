@@ -1,5 +1,6 @@
 pub mod local_file_write;
 pub mod nmap_preflight;
+pub mod registry;
 pub mod sealed_corpus_read;
 
 use crate::domain::execution::FallbackReference;
