@@ -1,3 +1,4 @@
+use crate::adapters::execution_delivery::registry::AdapterRegistry;
 use crate::adapters::execution_delivery::{
     AdapterDeliveryRequest, AdapterDeliveryResult, ExternalRouteDeliveryAdapter,
 };
@@ -285,6 +286,49 @@ impl ExecutionService {
         &self,
         route: &SelectedExecutionRoute,
         adapter: &A,
+        context: CoordinationContext,
+    ) -> FaLocalResult<ExecutionTrace> {
+        self.deliver_via_adapter(route, adapter, context)
+    }
+
+    /// Resolves the adapter for `route.requested_capability_id` at runtime
+    /// from `registry` instead of requiring the caller to already know which
+    /// concrete adapter to invoke. A capability with no registered adapter is
+    /// a truthful degraded outcome (no delivery mechanism is currently
+    /// available for admitted work), not an error: it is reported the same
+    /// way a single adapter's own `DependencyUnavailable` result is.
+    pub fn deliver_selected_route_via_registry(
+        &self,
+        route: &SelectedExecutionRoute,
+        registry: &AdapterRegistry,
+        context: CoordinationContext,
+    ) -> FaLocalResult<ExecutionTrace> {
+        validate_selected_route_for_delivery(route)?;
+
+        match registry.resolve(route.requested_capability_id) {
+            Some(adapter) => self.deliver_via_adapter(route, adapter, context),
+            None => {
+                let mut statuses = vec![build_admitted_not_started_status_from_route(
+                    route,
+                    context.coordinated_at_utc,
+                )?];
+                statuses.push(build_unavailable_dependency_status_from_route(
+                    route,
+                    context.completed_at_utc,
+                    format!(
+                        "no delivery adapter registered for capability {}",
+                        route.requested_capability_id
+                    ),
+                )?);
+                ExecutionTrace::new(statuses)
+            }
+        }
+    }
+
+    fn deliver_via_adapter(
+        &self,
+        route: &SelectedExecutionRoute,
+        adapter: &dyn ExternalRouteDeliveryAdapter,
         context: CoordinationContext,
     ) -> FaLocalResult<ExecutionTrace> {
         validate_selected_route_for_delivery(route)?;
