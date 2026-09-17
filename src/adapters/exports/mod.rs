@@ -1,3 +1,5 @@
+pub mod jsonl_forensic_export;
+
 use crate::domain::forensics::ValidatedForensicEvent;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
