@@ -116,6 +116,18 @@ impl ForensicService {
         input: ForensicRecordInput,
         adapter: &A,
     ) -> FaLocalResult<ExportedForensicRecord> {
+        self.record_and_export_event_via(input, adapter)
+    }
+
+    /// Same as [`Self::record_and_export_event`], but takes the adapter as a
+    /// trait object so a caller that only learns which concrete adapter to
+    /// use at runtime (e.g. from CLI flags) does not need a generic type
+    /// parameter to call it.
+    pub fn record_and_export_event_via(
+        &self,
+        input: ForensicRecordInput,
+        adapter: &dyn ForensicEventExportAdapter,
+    ) -> FaLocalResult<ExportedForensicRecord> {
         let event = self.record_event(input)?;
         let export_receipt = map_export_result(adapter.adapter_id(), adapter.export_event(&event))?;
 
