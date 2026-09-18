@@ -120,6 +120,7 @@ It currently includes:
 - bounded forensic recorder/export workflow over already-known execution truth
 - append-only local JSONL forensic export sink, one compact record per line, reporting an unavailable sink as a fail-closed error rather than dropping the event
 - `fa-local-run route` CLI command wiring intake, requester-trust evaluation, policy loading, and capability admission into one resolved route decision from raw untrusted JSON files, exit-coded on whether the resolved posture admits execution
+- `fa-local-run execute` CLI command wiring `route` through plan validation, `AdapterRegistry`-backed dispatch, and forensic recording/export in one bounded run: denied and review-required routes stop with a truthful forensic record and no plan is ever touched; an unbounded plan reports a plan denial instead of running; an admitted route with no adapter registered for its capability degrades truthfully rather than fabricating success
 - pure execution-status validation and construction helpers
 - pure review-package validation and construction helpers
 - pure forensic-event validation and construction helpers
@@ -130,7 +131,6 @@ What is still intentionally not delivered:
 
 - broad cross-service adapter integrations
 - external adapter-backed execution coordination beyond the current bounded delivery seam
-- a CLI path from a resolved route decision through plan validation, adapter dispatch, and forensic export in one invocation
 - daemon or API surfaces
 - SQLite-backed queryable forensic storage
 - persistence layer
