@@ -15,16 +15,24 @@ Delivered since the list below was last trimmed:
   parameter (`Vec<CapabilityScopedAdapterSelection>`). A heterogeneous multi-capability plan run
   with `--per-step-dispatch` no longer needs every adapter registered by hand through the library
   API.
+- Declared-fallback coordination across steps dispatched to different adapters in the per-step
+  delivery path (`ExecutionService::deliver_plan_per_step_via_registry`): when a step's own
+  attempt is `Failed`, `Unavailable`, or `Canceled` and the plan declares a fallback for it, the
+  coordinator dispatches the declared fallback step out of order to *its own* registry-resolved
+  adapter (which may differ from the primary step's). A fallback step already consumed by one
+  failed step is never dispatched a second time for another step declaring the same fallback. A
+  plan that completes entirely, but only because one or more steps needed their fallback, reports
+  `CompletedWithConstraints`/`degraded_fallback_limited` (never `DegradedFallbackEquivalent`, since
+  the coordinator cannot verify two different capabilities are truly equivalent) rather than a
+  plain `Completed`.
 
 Not yet delivered, in no particular priority order:
 
 1. Broad cross-service adapter integrations (adapters that reach real peer services — Cortex,
    NeuronForge-Local, DF Local — instead of local-only delivery).
-2. Declared-fallback coordination across steps dispatched to different adapters in the per-step
-   delivery path (`ExecutionService::deliver_plan_per_step_via_registry`).
-3. A daemon or networked API surface (FA Local stays a CLI binary with no HTTP surface by
+2. A daemon or networked API surface (FA Local stays a CLI binary with no HTTP surface by
    doctrine; this would need an explicit, separately-authorized architectural decision).
-4. A persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state
+3. A persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state
    across restarts).
-5. The DataForge Local `execution_status_event` staging endpoint and writeback wiring
+4. The DataForge Local `execution_status_event` staging endpoint and writeback wiring
    (`src/integrations/df_local/mod.rs`; DataForge Local's Phase X4, not this repo's).

@@ -109,12 +109,12 @@ It adds:
 ## Not yet delivered
 
 Multi-adapter dispatch (`AdapterRegistry`), per-step multi-capability coordination, concrete
-forensic export sinks (JSONL and SQLite), and CLI configuration of more than one adapter per
-`execute` run are now delivered — see the "current bounded baseline" list in
+forensic export sinks (JSONL and SQLite), CLI configuration of more than one adapter per
+`execute` run, and declared-fallback coordination across per-step-dispatched adapters are now
+delivered — see the "current bounded baseline" list in
 `doc/system/00_overview/01-overview-charter.md`. Still not delivered:
 
 - broad cross-service adapter integrations (adapters reaching real peer services, not local-only delivery)
-- declared-fallback coordination across steps dispatched to different adapters in the per-step delivery path
 - daemon or networked API surface
 - persistence layer beyond forensic evidence
 - DataForge Local staging endpoint wiring for execution_status_event writeback (Phase X4 DataForge side)
@@ -164,4 +164,4 @@ The current delivered state should be described as:
 - contract gate runner present (`ci_gate.sh`)
 - no full external FA Local runtime surface admitted yet
 
-That wording matters because the crate now has meaningful contract, deny-path, posture-resolution, bounded plan-validation, truthful status, bounded review-handoff behavior, a bounded review-package emitter workflow for both current review postures, minimal forensic-event truth behavior, a bounded forensic recorder/export workflow with concrete JSONL and SQLite sinks, bounded operator-friction behavior, deterministic internal routing behavior, bounded internal coordination behavior, a capability-scoped multi-adapter delivery seam (whole-route and per-step), one concrete capability-scoped local-file-write adapter, one concrete Nmap preflight adapter, a typed intake entry point, a decision-resolution and execution-pipeline orchestration layer, a CLI binary exposing all of it, and a typed writeback stub — but it still does not ship persistence beyond forensic evidence, broad cross-service adapter integrations, declared-fallback coordination across per-step-dispatched adapters, generic workflow orchestration, live scan execution, or a networked API/daemon runtime surface.
+That wording matters because the crate now has meaningful contract, deny-path, posture-resolution, bounded plan-validation, truthful status, bounded review-handoff behavior, a bounded review-package emitter workflow for both current review postures, minimal forensic-event truth behavior, a bounded forensic recorder/export workflow with concrete JSONL and SQLite sinks, bounded operator-friction behavior, deterministic internal routing behavior, bounded internal coordination behavior, a capability-scoped multi-adapter delivery seam (whole-route and per-step), one concrete capability-scoped local-file-write adapter, one concrete Nmap preflight adapter, a typed intake entry point, a decision-resolution and execution-pipeline orchestration layer, a CLI binary exposing all of it, and a typed writeback stub — but it still does not ship persistence beyond forensic evidence, broad cross-service adapter integrations, generic workflow orchestration, live scan execution, or a networked API/daemon runtime surface.
