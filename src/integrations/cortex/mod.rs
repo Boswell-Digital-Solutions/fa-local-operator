@@ -1,3 +1,5 @@
+pub mod shard_dispatch;
+
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
@@ -9,6 +11,12 @@ use crate::domain::shared::{
     deserialize_contract_value,
 };
 use crate::errors::FaLocalResult;
+
+pub use shard_dispatch::{
+    AUTHORIZED_WORKER_TYPES, CortexSubprocessGnatShardAdapter,
+    CortexSubprocessGnatShardAdapterConfig, GnatShardDeliveryAdapter, GnatShardDispatchRequest,
+    GnatShardDispatchResult, GnatSourceFingerprint,
+};
 
 #[derive(Debug, Default)]
 pub struct CortexAdapter;

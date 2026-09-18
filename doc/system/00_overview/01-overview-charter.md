@@ -83,10 +83,11 @@ It currently includes:
 - pure forensic-event validation and construction helpers
 - pure friction-payload validation and construction helpers
 - deny smoke tests for the current fail-closed baseline rules
+- `integrations::cortex::CortexSubprocessGnatShardAdapter`: dispatches one admitted Cortex Gnat shard by spawning Cortex's `cortex_runtime.gnats.shard_cli` (a new bounded CLI entry point added in the COR repo alongside this) as a subprocess and parsing the `GnatWorkerReceipt.v1` it prints, live-verified against the real COR checkout. This is the "later FA-Local dispatch adapter" `DECISIONS/0019` (COR repo) names as the missing half of `GnatDispatchValidator::negotiate`'s admission-only path. Bounded to the two worker types `DECISIONS/0018` (COR) authorizes for this proving slice (`markdown_syntax`, `plain_text_syntax`) — refused before ever spawning a process, not left for Cortex's own CLI to reject. Takes a caller-supplied, already-complete `GnatShardDispatchRequest`, not a `GnatDispatchShard` (the negotiation-time envelope's shard summary, which lacks several needed fields) — bridging admission negotiation into a full runnable shard descriptor, and wiring this adapter into `negotiate` + forensic recording + a CLI surface, remain undelivered. Deadline enforcement on the subprocess call is a disclosed gap, not an implemented one.
 
 What is still intentionally not delivered:
 
-- broad cross-service adapter integrations
+- broad cross-service adapter integrations beyond the Cortex Gnat shard dispatch adapter above (which itself still has no caller wiring it end to end); NeuronForge-Local and DF-Local integrations are unstarted
 - daemon or API surfaces
 - persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state across restarts)
 

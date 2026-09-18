@@ -114,7 +114,7 @@ forensic export sinks (JSONL and SQLite), CLI configuration of more than one ada
 delivered — see the "current bounded baseline" list in
 `doc/system/00_overview/01-overview-charter.md`. Still not delivered:
 
-- broad cross-service adapter integrations (adapters reaching real peer services, not local-only delivery)
+- broad cross-service adapter integrations (adapters reaching real peer services, not local-only delivery) — in progress: `integrations::cortex::CortexSubprocessGnatShardAdapter` dispatches one Cortex Gnat shard by spawning COR's new `cortex_runtime.gnats.shard_cli`, live-verified against the real COR checkout, but nothing wires `GnatDispatchValidator::negotiate` through it into forensic recording or a CLI surface yet, and NeuronForge-Local/DF-Local integrations are unstarted — see `doc/system/10_service-contract/02-contract-surface.md`
 - daemon or networked API surface
 - persistence layer beyond forensic evidence
 - DataForge Local staging endpoint wiring for execution_status_event writeback (Phase X4 DataForge side)
