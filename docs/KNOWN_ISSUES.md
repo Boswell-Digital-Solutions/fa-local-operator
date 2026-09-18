@@ -271,3 +271,66 @@ blocked on item 2 and not independently actionable, and to record the ownership 
 authorized, item 3 should be re-opened as its own concrete proposal at that point, informed by
 whatever state a running FA Local process actually turns out to need -- not drafted speculatively
 ahead of that decision.
+
+---
+
+## KI-FLO-20260918-007 — no next NeuronForge-Local task admission is justified (GATE-00 finding, `BDS-FAL-NFL-ADMISSION-v0.1`)
+
+**Date found:** 2026-09-18
+**Status:** closed (scoping finding, not a code defect)
+
+**What was investigated:** whether a second NeuronForge-Local task should be admitted for
+FA-Local dispatch, beyond the one `ADR-002` (`neuronforge-local-operator` repo) already admits
+(`analyze.style.scene.v1`). Investigated under a Drive-hosted governed plan,
+`BDS-FAL-NFL-ADMISSION-v0.1` (`/Forge/Plans/BDS_FAL_NFL_ADMISSION_v0.1_PLAN_SET/`, Charlie
+Boswell authorized CP0/WP00 only: read-only source-truth, task inventory, and candidate
+selection -- no implementation, no task admission).
+
+**Source-lock:** all five primary repo heads (`fa-local-operator`, `neuronforge-local-operator`,
+`forge-local-runtime`, `dataforge-Local`, `Forge_Command`) reproduced with zero drift against the
+plan's recorded pins. `fa-local-operator` PR #25 / `KI-FLO-20260918-006` confirmed present at
+`master`.
+
+**NeuronForge-Local task inventory:** beyond the already-admitted `analyze.style.scene.v1`, found
+two other candidates with real, stable contracts:
+
+- `analyze.continuity.adjacent_scene.v1` -- a more formally documented contract than
+  `analyze.style.scene.v1` itself (`doc/system/10_service-contract/20-analyze-continuity-adjacent-scene-v1.md`
+  in `neuronforge-local-operator`: schema-validated request/response, fail-closed envelope, hard-fail
+  triggers, PACT context-lineage support), but no existing HTTP route -- only bash+Python CLI
+  scripts (`scripts/run-continuity-adjacent-scene.sh` and helpers), and a heavier `HIGH_QUALITY_LOCAL`
+  route class than `analyze.style.scene.v1`'s `WORKHORSE_LOCAL`.
+- `drift-analysis` -- simple, fully deterministic (no model call at all), already has an HTTP
+  route (`POST /api/v1/authorforge/drift-analysis`).
+
+Also found and rejected as candidates: `run_beat_candidate_bakeoff.sh` (no formal `task_id` or
+doc/system contract, ad-hoc comparison script) and `cor_gnat_semantic_handoff` (literal-typed to
+Cortex as originator, not admissible for FA-Local per its own schema -- the same finding recorded
+when scoping `ADR-002` originally).
+
+**The decisive finding:** neither surviving candidate has a demonstrated FA-Local-side consumer.
+`fa-local-operator` has zero references to either task anywhere. Both are already consumed
+directly by AuthorForge without FA-Local involvement (`apps/api/src/routes/drift.ts`,
+`apps/api/src/adapters/ai-contract.ts`) -- which is not itself disqualifying (the already-admitted
+`analyze.style.scene.v1` is *also* consumed directly by AuthorForge, e.g.
+`StyleAnalysisPanel.svelte`/`neuroforge.ts`, alongside its FA-Local path), but there is no evidence
+of an actual FA-Local-mediated need for either: no work order, plan, or code anywhere asks FA-Local
+to dispatch them, and AuthorForge's own vendored copy of `fa-local-operator`
+(`apps/Author-Forge/third_party/fa_local/`) is stale -- last touched 2026-08-06, predating even the
+*first* NeuronForge-Local dispatch slice built earlier in this same session, confirming the
+desktop app does not yet call `fa-local-run neuronforge-dispatch` for anything, including the
+already-admitted task.
+
+**Fix:** N/A -- not a defect. Both candidates pass every technical admission criterion in
+`BDS-FAL-NFL-ADMISSION-v0.1`'s rejection-condition list, but fail its preference signal
+("extends a real current workflow rather than adding speculative capability"). GATE-00 closed
+with disposition **no next task admission justified**: `drift-analysis` held (cheapest to admit
+later if a real need appears -- deterministic, already HTTP-exposed); `analyze.continuity.adjacent_scene.v1`
+held (would also need a new NeuronForge-Local-side HTTP route built first, unlike `drift-analysis`
+or the already-admitted task); `run_beat_candidate_bakeoff.sh` rejected (no stable contract). No
+CP1 was activated.
+
+**Scope:** closed for this GATE-00 decision. Per the plan's own terms, "no admission justified" is
+a valid, successful CP0 outcome, not a stalled one. Re-open only if a concrete FA-Local-side
+consumer or workflow need for `drift-analysis` or `analyze.continuity.adjacent_scene.v1` is
+identified in the future -- do not re-run this evidence cycle speculatively.

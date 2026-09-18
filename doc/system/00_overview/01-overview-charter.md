@@ -95,7 +95,7 @@ It currently includes:
 
 What is still intentionally not delivered:
 
-- broad cross-service adapter integrations beyond the Cortex Gnat proving slice and the first NeuronForge-Local proving slice above (which admits only the one task `ADR-002` names). DF-Local's execution-bridge writeback (above) is delivered; other DF-Local integration surfaces remain unstarted.
+- broad cross-service adapter integrations beyond the Cortex Gnat proving slice and the first NeuronForge-Local proving slice above (which admits only the one task `ADR-002` names -- investigated, not just unstarted: `BDS-FAL-NFL-ADMISSION-v0.1` CP0/WP00 found two technically-admissible candidates with no demonstrated FA-Local-side consumer and closed GATE-00 with "no next task admission justified," `KI-FLO-20260918-007`). DF-Local's execution-bridge writeback (above) is delivered; other DF-Local integration surfaces remain unstarted.
 - daemon or API surfaces
 - persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state across restarts) -- blocked on the daemon/API surface item above, not independently actionable: FA Local is a CLI with no running process to lose state across restarts today, and `forge-local-runtime`'s accepted boundary doctrine already assigns any future durable state to DF Local Foundation, not FA Local (`KI-FLO-20260918-006`)
 
