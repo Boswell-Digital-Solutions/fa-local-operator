@@ -1,3 +1,4 @@
+pub mod forensics;
 pub mod shard_dispatch;
 
 use std::collections::BTreeSet;
@@ -12,6 +13,10 @@ use crate::domain::shared::{
 };
 use crate::errors::FaLocalResult;
 
+pub use forensics::{
+    GnatDispatchForensicEvent, GnatForensicEventType, GnatForensicRedactionLevel,
+    GnatNegotiationOutcome, GnatReceiptState, GnatShardOutcome, ValidatedGnatDispatchForensicEvent,
+};
 pub use shard_dispatch::{
     AUTHORIZED_WORKER_TYPES, CortexSubprocessGnatShardAdapter,
     CortexSubprocessGnatShardAdapterConfig, GnatShardDeliveryAdapter, GnatShardDispatchRequest,

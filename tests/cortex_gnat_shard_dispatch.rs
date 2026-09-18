@@ -1,6 +1,7 @@
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+use std::time::Instant;
 
 use uuid::Uuid;
 
@@ -32,6 +33,19 @@ fn fake_python_binary(label: &str, stdout: &str, exit_code: i32) -> PathBuf {
         format!("#!/bin/sh\ncat <<'EOF'\n{stdout}\nEOF\nexit {exit_code}\n"),
     )
     .unwrap();
+    let mut permissions = fs::metadata(&script_path).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&script_path, permissions).unwrap();
+    script_path
+}
+
+/// Like [`fake_python_binary`], but ignores its arguments and sleeps for
+/// `sleep_seconds` before ever producing output -- long enough to always
+/// outrun a short `deadline_ms`, proving the adapter kills it rather than
+/// waiting.
+fn fake_slow_python_binary(label: &str, sleep_seconds: u32) -> PathBuf {
+    let script_path = temp_file(label, "sh");
+    fs::write(&script_path, format!("#!/bin/sh\nsleep {sleep_seconds}\n")).unwrap();
     let mut permissions = fs::metadata(&script_path).unwrap().permissions();
     permissions.set_mode(0o755);
     fs::set_permissions(&script_path, permissions).unwrap();
@@ -206,4 +220,41 @@ fn dispatch_reports_unavailable_when_the_interpreter_cannot_be_spawned() {
     }
 
     fs::remove_file(&local_path).ok();
+}
+
+#[test]
+fn dispatch_kills_a_runner_that_outruns_its_deadline_instead_of_blocking() {
+    let local_path = temp_file("deadline-source", "md");
+    fs::write(&local_path, "# hello\n").unwrap();
+
+    let mut request = base_request(local_path.clone());
+    request.deadline_ms = 200;
+
+    let fake_python = fake_slow_python_binary("deadline", 10);
+    let adapter = CortexSubprocessGnatShardAdapter::new(
+        CortexSubprocessGnatShardAdapterConfig::new(fake_python.clone(), std::env::temp_dir()),
+    );
+
+    let started_at = Instant::now();
+    let result = adapter.deliver_shard(&request);
+    let elapsed = started_at.elapsed();
+
+    match result {
+        GnatShardDispatchResult::DispatchUnavailable { summary } => {
+            assert!(summary.contains("deadline"));
+            assert!(summary.contains("200"));
+        }
+        other => panic!("expected DispatchUnavailable, got {other:?}"),
+    }
+
+    // The fake runner sleeps for 10s; a real kill returns in well under
+    // that, proving the deadline actually terminates it rather than the
+    // adapter just waiting the sleep out.
+    assert!(
+        elapsed.as_secs() < 5,
+        "expected the killed runner to return quickly, took {elapsed:?}"
+    );
+
+    fs::remove_file(&local_path).ok();
+    fs::remove_file(&fake_python).ok();
 }

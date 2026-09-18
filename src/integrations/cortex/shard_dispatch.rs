@@ -20,21 +20,27 @@
 //! refused here too, before ever spawning a process, not left for Cortex's
 //! own CLI to reject.
 //!
-//! Deadline enforcement is not yet implemented: the subprocess call blocks
-//! until Cortex's CLI exits on its own. `DECISIONS/0019` assigns FA Local
-//! "scheduling, cancellation, concurrency limits, and retry decisions in
-//! integrated mode" -- this first slice proves the dispatch boundary itself
-//! works; a hard per-shard timeout is a real, disclosed gap for a later
-//! slice, not something silently assumed away.
+//! `DECISIONS/0019` assigns FA Local "scheduling, cancellation, concurrency
+//! limits, and retry decisions in integrated mode" -- deadline enforcement
+//! on the subprocess call is part of that: `deliver_shard` kills and
+//! reports `DispatchUnavailable` for a call that outruns the shard's own
+//! declared `deadline_ms`, rather than blocking on Cortex's CLI indefinitely.
 
+use std::io::Read;
+use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::integrations::cortex::GnatWorkerType;
+
+/// How often [`wait_with_deadline`] polls the child process while waiting
+/// for it to exit or for `deadline_ms` to elapse.
+const POLL_INTERVAL: Duration = Duration::from_millis(20);
 
 /// The two worker types [`DECISIONS/0018`](https://github.com/Boswell-Digital-Solutions/COR/blob/master/DECISIONS/0018-gnat-bounded-parallel-worker-authorization.md)
 /// authorizes for this proving slice. Checked before ever spawning Cortex's
@@ -250,35 +256,85 @@ impl GnatShardDeliveryAdapter for CortexSubprocessGnatShardAdapter {
             };
         }
 
-        let output = Command::new(&self.config.python_binary)
+        let mut child = match Command::new(&self.config.python_binary)
             .current_dir(&self.config.cortex_repo_root)
             .args(["-m", "cortex_runtime.gnats.shard_cli"])
             .arg(&shard_path)
             .arg("--local-path")
             .arg(&request.local_path)
-            .output();
-
-        let _ = std::fs::remove_file(&shard_path);
-
-        let output = match output {
-            Ok(output) => output,
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            // Its own new process group (pid == pgid), so a deadline kill
+            // can signal the whole group -- not just this one process --
+            // and take any subprocess the interpreter itself spawned with
+            // it, rather than leaving one behind to hold the stdout/stderr
+            // pipes open indefinitely.
+            .process_group(0)
+            .spawn()
+        {
+            Ok(child) => child,
             Err(error) => {
+                let _ = std::fs::remove_file(&shard_path);
                 return GnatShardDispatchResult::DispatchUnavailable {
                     summary: format!("could not spawn Cortex Gnat shard runner: {error}"),
                 };
             }
         };
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let receipt: Value = match serde_json::from_str(stdout.trim()) {
+        // Drain stdout/stderr on their own threads while polling for exit,
+        // the same way std's own `Command::output()` avoids deadlocking on
+        // a full pipe buffer -- `Command::output()` itself has no way to
+        // bound how long it blocks, which is exactly what this call must do.
+        let mut stdout_pipe = child.stdout.take().expect("stdout was piped");
+        let mut stderr_pipe = child.stderr.take().expect("stderr was piped");
+        let stdout_reader = std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            let _ = stdout_pipe.read_to_end(&mut buf);
+            buf
+        });
+        let stderr_reader = std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            let _ = stderr_pipe.read_to_end(&mut buf);
+            buf
+        });
+
+        let wait_outcome = wait_with_deadline(&mut child, request.deadline_ms);
+        let _ = std::fs::remove_file(&shard_path);
+
+        let status = match wait_outcome {
+            WaitOutcome::Exited(status) => status,
+            WaitOutcome::DeadlineExceeded => {
+                let _ = stdout_reader.join();
+                let _ = stderr_reader.join();
+                return GnatShardDispatchResult::DispatchUnavailable {
+                    summary: format!(
+                        "Cortex Gnat shard runner exceeded its {} ms deadline and was killed",
+                        request.deadline_ms
+                    ),
+                };
+            }
+            WaitOutcome::WaitFailed(error) => {
+                let _ = stdout_reader.join();
+                let _ = stderr_reader.join();
+                return GnatShardDispatchResult::DispatchUnavailable {
+                    summary: format!("could not wait for Cortex Gnat shard runner: {error}"),
+                };
+            }
+        };
+
+        let stdout = stdout_reader.join().unwrap_or_default();
+        let stderr = stderr_reader.join().unwrap_or_default();
+
+        let stdout_text = String::from_utf8_lossy(&stdout);
+        let receipt: Value = match serde_json::from_str(stdout_text.trim()) {
             Ok(value) => value,
             Err(_) => {
-                let stderr = String::from_utf8_lossy(&output.stderr);
+                let stderr_text = String::from_utf8_lossy(&stderr);
                 return GnatShardDispatchResult::DispatchUnavailable {
                     summary: format!(
                         "Cortex Gnat shard runner produced no parseable receipt (exit {:?}): {}",
-                        output.status.code(),
-                        stderr.trim()
+                        status.code(),
+                        stderr_text.trim()
                     ),
                 };
             }
@@ -293,4 +349,60 @@ impl GnatShardDeliveryAdapter for CortexSubprocessGnatShardAdapter {
             },
         }
     }
+}
+
+enum WaitOutcome {
+    Exited(ExitStatus),
+    /// The child did not exit within `deadline_ms` and was killed.
+    DeadlineExceeded,
+    /// `Child::try_wait` itself returned an OS-level error.
+    WaitFailed(std::io::Error),
+}
+
+/// Polls `child` until it exits or `deadline_ms` elapses, killing it in the
+/// latter case rather than ever blocking indefinitely on Cortex's CLI.
+fn wait_with_deadline(child: &mut Child, deadline_ms: u64) -> WaitOutcome {
+    let deadline = Instant::now() + Duration::from_millis(deadline_ms);
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return WaitOutcome::Exited(status),
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    kill_process_group(child);
+                    let _ = child.wait();
+                    return WaitOutcome::DeadlineExceeded;
+                }
+                std::thread::sleep(POLL_INTERVAL);
+            }
+            Err(error) => return WaitOutcome::WaitFailed(error),
+        }
+    }
+}
+
+/// `child.kill()` alone only signals the one process spawned directly; the
+/// interpreter it runs can itself have spawned further processes (a shell
+/// wrapping a Python invocation, for instance) that would otherwise be
+/// orphaned and keep the stdout/stderr pipes this call is draining open
+/// indefinitely, defeating the deadline entirely. `process_group(0)` at
+/// spawn time put the whole tree in its own group (pid == pgid), so
+/// signaling the *negative* pid reaches that entire group in one syscall.
+///
+/// This calls `libc::kill` directly rather than spawning an external `kill`
+/// binary: shelling out to one was tried first and silently failed in this
+/// crate's own sandboxed dev environment (bash's `kill` builtin delivers a
+/// process-group signal correctly; a spawned `kill` *process* reports
+/// success but delivers nothing) -- a real, reproduced gap between two
+/// equally standard ways to send the same signal, not a hypothetical one.
+/// `child.kill()` is still called too, as a direct fallback covering the
+/// one process it always reaches even if group delivery somehow does not.
+fn kill_process_group(child: &mut Child) {
+    let pid = child.id();
+    // SAFETY: `kill(2)` with a negated pid signals the process group whose
+    // ID equals that magnitude; no pointers are passed, and every argument
+    // is a plain integer, so there is nothing here for the caller to
+    // uphold beyond the pid being a real value (`Child::id()` always is).
+    unsafe {
+        libc::kill(-(pid as libc::pid_t), libc::SIGKILL);
+    }
+    let _ = child.kill();
 }

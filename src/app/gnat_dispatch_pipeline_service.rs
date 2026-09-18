@@ -1,4 +1,5 @@
-//! Composes Cortex Gnat admission negotiation with real shard dispatch.
+//! Composes Cortex Gnat admission negotiation with real shard dispatch and
+//! truthful forensic recording.
 //!
 //! [`GnatDispatchValidator::negotiate`] only ever decides whether FA Local
 //! *admits* a Cortex-initiated Gnat run; on its own it has no onward path
@@ -7,25 +8,31 @@
 //! shard (see [`GnatShardDispatchRequest::from_declared_shard`]), negotiate,
 //! and only when the negotiated posture actually admits FA-Local-owned
 //! dispatch, deliver every shard through a [`GnatShardDeliveryAdapter`] and
-//! collect its real outcome.
+//! collect its real outcome. Every outcome -- denied, serial-fallback,
+//! ready, and each shard's own result -- is recorded as a
+//! [`GnatDispatchForensicEvent`](crate::integrations::cortex::GnatDispatchForensicEvent),
+//! FA Local's own execution-request forensic contract having no equivalent
+//! of a Cortex-initiated run to record it as.
 //!
-//! One thing this does *not* yet do, disclosed rather than silently assumed
-//! away: **no forensic recording.**
-//! [`ForensicRecordKind`](crate::app::forensic_service::ForensicRecordKind)
-//! is built entirely around FA Local's own `RouteDecision`/`ExecutionStatus`
-//! domain, which a Cortex-initiated Gnat run has no equivalent of. Giving
-//! Gnat dispatch runs the same truthful, append-only forensic trail every
-//! other admitted path gets needs its own forensic-event contract
-//! extension, not a bolt-on to this pipeline.
+//! Recording is currently in-memory only: [`GnatDispatchRunResult::forensic_events`]
+//! is returned for the caller to inspect or persist, the same way
+//! `execute`'s forensic records existed before this repo's JSONL/SQLite
+//! export sinks did. Wiring a matching export sink for this event family
+//! is a disclosed, separate concern, not something this pipeline does.
 
 use std::collections::HashMap;
 
+use serde_json::Value;
+
 use crate::domain::guards::DenialGuard;
+use crate::domain::shared::{ForensicEventId, TimestampUtc};
 use crate::errors::{FaLocalError, FaLocalResult};
 use crate::integrations::cortex::{
-    GnatDispatchAdmission, GnatDispatchAdmissionState, GnatDispatchEnvelope, GnatDispatchValidator,
-    GnatFaLocalCapabilityState, GnatShardDeliveryAdapter, GnatShardDispatchRequest,
-    GnatShardDispatchResult, GnatShardEnrichment,
+    GnatDispatchAdmission, GnatDispatchAdmissionState, GnatDispatchEnvelope,
+    GnatDispatchForensicEvent, GnatDispatchValidator, GnatFaLocalCapabilityState,
+    GnatForensicEventType, GnatForensicRedactionLevel, GnatNegotiationOutcome, GnatReceiptState,
+    GnatShardDeliveryAdapter, GnatShardDispatchRequest, GnatShardDispatchResult,
+    GnatShardEnrichment, GnatShardOutcome, ValidatedGnatDispatchForensicEvent,
 };
 
 /// The full result of one Gnat dispatch run.
@@ -48,6 +55,16 @@ pub enum GnatDispatchRunOutcome {
     },
 }
 
+/// [`GnatDispatchRunOutcome`] plus the truthful forensic trail recorded
+/// along the way: exactly one negotiation event, and (only for a
+/// [`GnatDispatchRunOutcome::Dispatched`] run) one event per declared
+/// shard, in declared order.
+#[derive(Debug)]
+pub struct GnatDispatchRunResult {
+    pub outcome: GnatDispatchRunOutcome,
+    pub forensic_events: Vec<ValidatedGnatDispatchForensicEvent>,
+}
+
 #[derive(Debug, Default)]
 pub struct GnatDispatchPipelineService;
 
@@ -58,26 +75,61 @@ impl GnatDispatchPipelineService {
         fa_local_capabilities: &GnatFaLocalCapabilityState,
         shard_enrichments: &HashMap<String, GnatShardEnrichment>,
         adapter: &dyn GnatShardDeliveryAdapter,
-    ) -> FaLocalResult<GnatDispatchRunOutcome> {
+        now: TimestampUtc,
+    ) -> FaLocalResult<GnatDispatchRunResult> {
         let shard_requests = build_shard_requests(envelope, shard_enrichments)?;
+        let mut forensic_events = Vec::new();
 
         let admission = match GnatDispatchValidator::negotiate(envelope, fa_local_capabilities) {
             Ok(admission) => admission,
-            Err(denial) => return Ok(GnatDispatchRunOutcome::Denied(denial)),
+            Err(denial) => {
+                forensic_events.push(build_negotiation_event(
+                    envelope,
+                    GnatNegotiationOutcome::Denied,
+                    denial.summary.clone(),
+                    now,
+                )?);
+                return Ok(GnatDispatchRunResult {
+                    outcome: GnatDispatchRunOutcome::Denied(denial),
+                    forensic_events,
+                });
+            }
         };
 
         match admission.state {
             GnatDispatchAdmissionState::SerialFallbackPermitted => {
-                Ok(GnatDispatchRunOutcome::SerialFallbackPermitted(admission))
+                forensic_events.push(build_negotiation_event(
+                    envelope,
+                    GnatNegotiationOutcome::SerialFallbackPermitted,
+                    admission.operator_visible_summary.clone(),
+                    now,
+                )?);
+                Ok(GnatDispatchRunResult {
+                    outcome: GnatDispatchRunOutcome::SerialFallbackPermitted(admission),
+                    forensic_events,
+                })
             }
             GnatDispatchAdmissionState::ReadyForFaLocalDispatch => {
-                let shard_results = shard_requests
-                    .iter()
-                    .map(|request| (request.shard_id.clone(), adapter.deliver_shard(request)))
-                    .collect();
-                Ok(GnatDispatchRunOutcome::Dispatched {
-                    admission,
-                    shard_results,
+                forensic_events.push(build_negotiation_event(
+                    envelope,
+                    GnatNegotiationOutcome::ReadyForFaLocalDispatch,
+                    admission.operator_visible_summary.clone(),
+                    now,
+                )?);
+
+                let mut shard_results = Vec::with_capacity(shard_requests.len());
+                for request in &shard_requests {
+                    let result = adapter.deliver_shard(request);
+                    forensic_events.push(build_shard_event(envelope, request, &result, now)?);
+                    shard_results.push((request.shard_id.clone(), result));
+                }
+
+                Ok(GnatDispatchRunResult {
+                    outcome: GnatDispatchRunOutcome::Dispatched {
+                        admission,
+                        shard_results,
+                    },
+                    forensic_events,
                 })
             }
         }
@@ -110,4 +162,123 @@ fn build_shard_requests(
             ))
         })
         .collect()
+}
+
+fn build_negotiation_event(
+    envelope: &GnatDispatchEnvelope,
+    negotiation_outcome: GnatNegotiationOutcome,
+    summary: String,
+    now: TimestampUtc,
+) -> FaLocalResult<ValidatedGnatDispatchForensicEvent> {
+    GnatDispatchForensicEvent::new(
+        ForensicEventId::new(),
+        envelope.correlation_id,
+        envelope.plan.run_id.clone(),
+        GnatForensicEventType::GnatDispatchNegotiated,
+        negotiation_outcome,
+        None,
+        None,
+        None,
+        None,
+        now,
+        bounded_summary(summary),
+        GnatForensicRedactionLevel::LinkageOnly,
+        true,
+    )?
+    .validated()
+}
+
+fn build_shard_event(
+    envelope: &GnatDispatchEnvelope,
+    request: &GnatShardDispatchRequest,
+    result: &GnatShardDispatchResult,
+    now: TimestampUtc,
+) -> FaLocalResult<ValidatedGnatDispatchForensicEvent> {
+    let (shard_outcome, receipt_state) = match result {
+        GnatShardDispatchResult::Completed { receipt } => (
+            GnatShardOutcome::Completed,
+            Some(receipt_state_from_receipt(receipt)?),
+        ),
+        GnatShardDispatchResult::NotCompleted { receipt } => (
+            GnatShardOutcome::NotCompleted,
+            Some(receipt_state_from_receipt(receipt)?),
+        ),
+        GnatShardDispatchResult::DispatchUnavailable { .. } => {
+            (GnatShardOutcome::DispatchUnavailable, None)
+        }
+    };
+
+    GnatDispatchForensicEvent::new(
+        ForensicEventId::new(),
+        envelope.correlation_id,
+        envelope.plan.run_id.clone(),
+        GnatForensicEventType::GnatShardDispatched,
+        GnatNegotiationOutcome::ReadyForFaLocalDispatch,
+        Some(request.shard_id.clone()),
+        Some(request.worker_type),
+        Some(shard_outcome),
+        receipt_state,
+        now,
+        bounded_summary(shard_event_summary(request, result)),
+        GnatForensicRedactionLevel::LinkageOnly,
+        true,
+    )?
+    .validated()
+}
+
+fn shard_event_summary(
+    request: &GnatShardDispatchRequest,
+    result: &GnatShardDispatchResult,
+) -> String {
+    match result {
+        GnatShardDispatchResult::Completed { .. } => {
+            format!("Cortex Gnat shard {} completed.", request.shard_id)
+        }
+        GnatShardDispatchResult::NotCompleted { receipt } => {
+            let state = receipt
+                .get("state")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown");
+            format!(
+                "Cortex Gnat shard {} did not complete ({state}).",
+                request.shard_id
+            )
+        }
+        GnatShardDispatchResult::DispatchUnavailable { summary } => summary.clone(),
+    }
+}
+
+fn receipt_state_from_receipt(receipt: &Value) -> FaLocalResult<GnatReceiptState> {
+    let state = receipt
+        .get("state")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            FaLocalError::ContractInvalid("Cortex Gnat receipt missing state field".to_owned())
+        })?;
+    match state {
+        "complete" => Ok(GnatReceiptState::Complete),
+        "denied" => Ok(GnatReceiptState::Denied),
+        "stale" => Ok(GnatReceiptState::Stale),
+        "failed" => Ok(GnatReceiptState::Failed),
+        other => Err(FaLocalError::ContractInvalid(format!(
+            "Cortex Gnat receipt reported an unrecognized state {other:?}"
+        ))),
+    }
+}
+
+/// Keeps a possibly-unbounded upstream string (an adapter's own
+/// `DispatchUnavailable` summary, which can wrap subprocess stderr text)
+/// within `GnatDispatchForensicEvent`'s 160-character summary bound,
+/// truncating on a character boundary so it never panics on non-ASCII text.
+fn bounded_summary(text: String) -> String {
+    if text.is_empty() {
+        return "(no summary provided)".to_owned();
+    }
+    if text.chars().count() <= 160 {
+        text
+    } else {
+        let mut truncated: String = text.chars().take(159).collect();
+        truncated.push('…');
+        truncated
+    }
 }
