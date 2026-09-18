@@ -13,6 +13,16 @@ FA Local currently includes:
 - deny smoke tests in `tests/denial_smoke.rs`
 - deterministic enum serialization tests in `tests/enums_roundtrip.rs`
 - fail-closed guard tests in `tests/guard_helpers.rs`
+- route-decision resolution tests in `tests/route_decision_resolution.rs`
+- adapter delivery tests in `tests/adapter_delivery.rs`, `tests/local_file_write_adapter.rs`, `tests/nmap_preflight_adapter.rs`
+- capability-scoped multi-adapter dispatch tests in `tests/adapter_registry_dispatch.rs`
+- per-step, per-capability multi-adapter coordination tests in `tests/multi_step_adapter_dispatch.rs`
+- forensic export tests in `tests/forensic_recorder.rs`, `tests/jsonl_forensic_export_adapter.rs`, `tests/sqlite_forensic_store.rs`
+- end-to-end decision and pipeline tests in `tests/decision_service.rs`, `tests/execution_pipeline_service.rs`
+- review-package tests in `tests/review_emitter.rs`, `tests/review_package_invariants.rs`
+- forensic-event invariant tests in `tests/forensic_event_invariants.rs`
+- reuse-reconnaissance tests in `tests/reuse_reconnaissance.rs`
+- gnat dispatch tests in `tests/gnat_dispatch.rs`
 - repo-local assembly for system documentation through `doc/system/BUILD.sh`
 
 The current machine-checked layer covers:
@@ -55,7 +65,10 @@ The current machine-checked layer covers:
 
 ## Delivered slice
 
-The currently delivered implementation slice is Phase 0.5 plus the opening of Phase 1 only.
+The currently delivered implementation slice extends well past the original Phase 0.5/Phase 1
+opening described below: `doc/system/00_overview/01-overview-charter.md`'s "current bounded
+baseline" is the canonical up-to-date list. The bullets below are the historical Phase 0.5/1
+delivery record and remain accurate as a subset, not as the full current state.
 
 It adds:
 
@@ -95,14 +108,15 @@ It adds:
 
 ## Not yet delivered
 
-The following planned surfaces are explicitly not delivered yet:
+Multi-adapter dispatch (`AdapterRegistry`), per-step multi-capability coordination, and concrete
+forensic export sinks (JSONL and SQLite) are now delivered — see the "current bounded baseline"
+list in `doc/system/00_overview/01-overview-charter.md`. Still not delivered:
 
-- multi-adapter dispatch or runtime selection surface
-- broad cross-service adapter integrations
+- broad cross-service adapter integrations (adapters reaching real peer services, not local-only delivery)
+- declared-fallback coordination across steps dispatched to different adapters in the per-step delivery path
+- CLI configuration of more than one adapter per `execute` run
 - daemon or networked API surface
-- forensic persistence layer
-- concrete forensic export sink
-- persistence layer
+- persistence layer beyond forensic evidence
 - DataForge Local staging endpoint wiring for execution_status_event writeback (Phase X4 DataForge side)
 
 ## Current delivery posture
@@ -114,7 +128,11 @@ The repo currently supports:
 - `bash doc/system/BUILD.sh`
 - `bash ci_gate.sh` (forge-contract-core gates + cargo test)
 - `./target/debug/fa-local-run validate <path>` (or stdin)
+- `./target/debug/fa-local-run route --request ... --requester-trust ... --policy ... --capability-registry ...`
+- `./target/debug/fa-local-run execute` (as `route`, plus `--plan`, an optional adapter selection, `--per-step-dispatch`, and an optional forensic export sink)
+- `./target/debug/fa-local-run forensics-query --sqlite <path> --correlation-id <uuid>|--event-type <type>`
 - `./target/debug/fa-local-run status`
+- `./target/debug/fa-local-run canonical-status`
 
 The current delivered state should be described as:
 
@@ -135,10 +153,15 @@ The current delivered state should be described as:
 - first bounded adapter-backed external route-delivery layer present
 - first concrete capability-scoped adapter present
 - second concrete adapter present only for Nmap runtime preflight, with no scan execution or free-form argument surface
+- capability-scoped `AdapterRegistry` present, resolving one adapter per capability for both whole-route and per-step delivery
+- per-step, per-capability multi-adapter coordination present, aggregating outcomes (including `PartialSuccess`) truthfully
+- concrete forensic export sinks present: append-only local JSONL and queryable local SQLite
 - first typed intake boundary present (`IntakeService`)
-- first CLI binary surface present (`fa-local-run`)
+- `DecisionService` present, composing intake/trust/policy/capability admission into one resolved route decision
+- `ExecutionPipelineService` present, composing decision resolution, plan validation, adapter dispatch, and forensic recording into one bounded run
+- first CLI binary surface present (`fa-local-run`), with `validate`, `route`, `execute`, `forensics-query`, `status`, and `canonical-status` subcommands
 - first typed writeback stub present (`DfLocalAdapter::post_execution_status_event` — not yet wired)
 - contract gate runner present (`ci_gate.sh`)
 - no full external FA Local runtime surface admitted yet
 
-That wording matters because the crate now has meaningful contract, deny-path, posture-resolution, bounded plan-validation, truthful status, bounded review-handoff behavior, a bounded review-package emitter workflow for both current review postures, minimal forensic-event truth behavior, a bounded forensic recorder/export workflow, bounded operator-friction behavior, deterministic internal routing behavior, bounded internal coordination behavior, a narrow adapter-backed delivery seam, one concrete capability-scoped local-file-write adapter, one concrete Nmap preflight adapter, a typed intake entry point, a CLI binary, and a typed writeback stub — but it still does not ship persistence, a concrete forensic export sink, multi-adapter dispatch, generic workflow orchestration, live scan execution, or a networked API/daemon runtime surface.
+That wording matters because the crate now has meaningful contract, deny-path, posture-resolution, bounded plan-validation, truthful status, bounded review-handoff behavior, a bounded review-package emitter workflow for both current review postures, minimal forensic-event truth behavior, a bounded forensic recorder/export workflow with concrete JSONL and SQLite sinks, bounded operator-friction behavior, deterministic internal routing behavior, bounded internal coordination behavior, a capability-scoped multi-adapter delivery seam (whole-route and per-step), one concrete capability-scoped local-file-write adapter, one concrete Nmap preflight adapter, a typed intake entry point, a decision-resolution and execution-pipeline orchestration layer, a CLI binary exposing all of it, and a typed writeback stub — but it still does not ship persistence beyond forensic evidence, broad cross-service adapter integrations, declared-fallback coordination across per-step-dispatched adapters, generic workflow orchestration, live scan execution, or a networked API/daemon runtime surface.

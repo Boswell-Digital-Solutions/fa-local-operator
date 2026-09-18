@@ -8,22 +8,23 @@ fa-local-operator (FLO) is the governed local execution operator for Forge appli
 
 **Not `forge-fa-local`.** Same brand, two families: this repo is the business-side backend/ecosystem execution boundary; `apps/public-app-local-support/forge-fa-local` is the unrelated public-app support variant. Path decides which one owns the behavior.
 
-Current status: early scaffold. The crate builds, exposes typed baseline vocabulary, and defaults toward fail-closed admission. Contract schemas, artifact loaders, and execution coordination are intentionally not implemented yet — see `ROADMAP.md`.
+Current status: bounded baseline delivered, not a scaffold. Schema-backed contracts, requester-trust/policy/capability admission, approval-posture resolution, bounded execution-plan validation, a capability-scoped `AdapterRegistry` for multi-adapter and per-step dispatch, JSONL and SQLite forensic export, and a CLI (`route`, `execute`, `forensics-query`, `validate`, `status`) all exist and are tested. Still genuinely not delivered: broad cross-service adapter integrations, declared-fallback coordination across steps dispatched to different adapters, a daemon/API surface, and persistence beyond forensic evidence — see `doc/system/00_overview/01-overview-charter.md`, the canonical current-baseline reference (`ROADMAP.md` and the other root pointer files predate this and are being superseded by it).
 
 ## Common Commands
 
 - Build/test: `cargo build`, `cargo test`
 - Contract gate: `bash ci_gate.sh` — execution bridge v1 contract participation. There is no GitHub workflow; `ci_gate.sh` is the gate, and `cargo test` covers the Rust suites.
 - Context bundle listing: `./scripts/context-bundle.sh --list`
+- CLI: `./target/debug/fa-local-run --help` lists all subcommands (`validate`, `route`, `execute`, `forensics-query`, `status`, `canonical-status`); `execute --help`-equivalent detail is in the same `--help` output, including adapter-selection and dispatch-mode flags.
 
 ## Architecture
 
 The crate is structured inside-out:
 
 - `domain/` — core vocabulary and pure decision primitives
-- `app/` — orchestration services that compose domain logic without absorbing policy authority (planned)
-- `adapters/` — storage, schema, clock, hashing, and export boundaries (planned)
-- `integrations/` — keeps Cortex, NeuronForge Local, and DF Local behind explicit contracts (planned)
+- `app/` — orchestration services that compose domain logic without absorbing policy authority (`decision_service`, `execution_pipeline_service`, `execution_service`, `routing_service`, `forensic_service`, `review_service`, `intake_service`)
+- `adapters/` — storage, schema, clock, hashing, and export boundaries (`execution_delivery/` adapters + `AdapterRegistry`; `exports/` JSONL and SQLite forensic sinks)
+- `integrations/` — keeps Cortex, NeuronForge Local, and DF Local behind explicit contracts (still stub-only pending Phase X4 on the DataForge Local side)
 
 FLO is the validating dispatcher of the local plane: **it validates plans and dispatches; it does not extract or prepare** (that is COR's job), and it is not a general-purpose executor.
 
@@ -31,8 +32,8 @@ FLO is the validating dispatcher of the local plane: **it validates plans and di
 - Plans are **bounded**. A plan that cannot be validated is not run.
 - Forensic events and status evidence are append-only.
 - Canonical reference: `doc/FLOSYSTEM.md`, assembled from `doc/system/` via `bash doc/system/BUILD.sh`.
-- Contracts: [`schemas/`](schemas/) — `capability-registry`, `execution-request`, `execution-plan`, `execution-status`, `denial-guard`, `friction-payload`, `forensic-event`, with worked cases in `schemas/examples/`.
-- See `BOUNDARIES.md`, `CAPABILITIES.md`, `POLICY.md`, `FORENSICS.md`, `REVIEWS.md`, and `ROADMAP.md` for the current scaffold-vs-planned boundary on each subsystem.
+- Contracts: [`schemas/`](schemas/) — `requester-trust`, `policy-artifact`, `capability-registry`, `execution-request`, `execution-plan`, `execution-status`, `route-decision`, `denial-guard`, `review-package`, `forensic-event`, `friction-payload`, with worked cases in `schemas/examples/`.
+- See `BOUNDARIES.md`, `CAPABILITIES.md`, `POLICY.md`, `FORENSICS.md`, `REVIEWS.md`, and `ROADMAP.md` for a per-subsystem summary; `doc/system/00_overview/01-overview-charter.md` is the canonical current-vs-not-yet-delivered reference and wins on conflict.
 
 ## Notes
 
