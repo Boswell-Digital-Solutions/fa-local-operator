@@ -123,14 +123,6 @@ impl FrictionPayload {
             ));
         }
 
-        if mentions_fallback(&self.operator_visible_summary)
-            && !is_explicit_fallback_subtype(self.degraded_subtype)
-        {
-            return Err(contract_invalid(
-                "friction payload cannot mention fallback without an explicit fallback degraded_subtype",
-            ));
-        }
-
         match self.friction_kind {
             FrictionKind::Denial => {
                 require_action(
@@ -530,10 +522,6 @@ fn is_explicit_fallback_subtype(value: Option<DegradedSubtype>) -> bool {
             DegradedSubtype::DegradedFallbackEquivalent | DegradedSubtype::DegradedFallbackLimited
         )
     )
-}
-
-fn mentions_fallback(value: &str) -> bool {
-    value.to_ascii_lowercase().contains("fallback")
 }
 
 fn mentions_semantic_or_workflow_narration(value: &str) -> bool {

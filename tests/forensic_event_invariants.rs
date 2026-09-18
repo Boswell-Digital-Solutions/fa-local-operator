@@ -103,16 +103,19 @@ fn forensic_event_rejects_planner_or_workflow_narration() {
 }
 
 #[test]
-fn forensic_event_requires_explicit_fallback_subtype_when_narrated() {
+fn a_forensic_event_may_mention_fallback_in_text_without_a_fallback_subtype() {
+    // Regression guard for KI-FLO-20260918-003: an untrusted, interpolated
+    // text field coincidentally containing the word "fallback" must never
+    // fail validation on its own. The real invariant --
+    // completed_with_constraints structurally requires an explicit fallback
+    // degraded_subtype -- is covered separately below.
     let mut event = base_review_event();
     event.summary = "bounded review handoff includes a fallback path".to_owned();
     event.degraded_subtype = None;
 
-    let error = event.validate().unwrap_err();
-    assert_eq!(
-        error.to_string(),
-        "contract invalid: forensic event cannot mention fallback without an explicit fallback degraded_subtype"
-    );
+    event
+        .validate()
+        .expect("mentioning fallback in text alone must not fail validation");
 }
 
 #[test]

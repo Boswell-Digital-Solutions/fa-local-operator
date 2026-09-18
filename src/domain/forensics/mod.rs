@@ -120,13 +120,6 @@ impl ForensicEvent {
             ));
         }
 
-        if mentions_fallback(&self.summary) && !is_explicit_fallback_subtype(self.degraded_subtype)
-        {
-            return Err(contract_invalid(
-                "forensic event cannot mention fallback without an explicit fallback degraded_subtype",
-            ));
-        }
-
         match self.event_type {
             ForensicEventType::DenialIssued => {
                 require_posture(
@@ -467,10 +460,6 @@ fn is_explicit_fallback_subtype(value: Option<DegradedSubtype>) -> bool {
             DegradedSubtype::DegradedFallbackEquivalent | DegradedSubtype::DegradedFallbackLimited
         )
     )
-}
-
-fn mentions_fallback(value: &str) -> bool {
-    value.to_ascii_lowercase().contains("fallback")
 }
 
 fn mentions_semantic_or_workflow_narration(value: &str) -> bool {
