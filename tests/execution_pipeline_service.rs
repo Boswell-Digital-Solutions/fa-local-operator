@@ -10,7 +10,8 @@ use fa_local::adapters::exports::jsonl_forensic_export::{
     JsonlForensicExportAdapter, JsonlForensicExportAdapterConfig,
 };
 use fa_local::app::execution_pipeline_service::{
-    AdapterSelection, DispatchMode, ExecutionPipelineInputs, ExecutionPipelineService,
+    AdapterSelection, CapabilityScopedAdapterSelection, DispatchMode, ExecutionPipelineInputs,
+    ExecutionPipelineService,
 };
 use fa_local::domain::execution::{ExecutionPlan, ExecutionPlanValidator};
 use fa_local::domain::forensics::ForensicEventType;
@@ -66,6 +67,7 @@ fn admitted_route_with_registered_adapter_completes_and_exports_every_status() {
             Some(AdapterSelection::LocalFileWrite {
                 delivery_root: delivery_root.clone(),
             }),
+            Vec::new(),
             DispatchMode::WholeRoute,
             Some(&export_adapter),
             decision_context("77777777-7777-4777-8777-777777777774"),
@@ -118,6 +120,7 @@ fn admitted_route_with_no_adapter_registered_degrades_truthfully_instead_of_fabr
                 execution_plan: Some(&plan),
             },
             None,
+            Vec::new(),
             DispatchMode::WholeRoute,
             None,
             decision_context("77777777-7777-4777-8777-777777777775"),
@@ -151,6 +154,7 @@ fn denied_route_records_a_denial_issued_forensic_event_and_never_reaches_a_plan(
                 execution_plan: None,
             },
             None,
+            Vec::new(),
             DispatchMode::WholeRoute,
             None,
             decision_context("77777777-7777-4777-8777-777777777776"),
@@ -189,6 +193,7 @@ fn review_required_route_records_a_route_decision_resolved_forensic_event() {
                 execution_plan: None,
             },
             None,
+            Vec::new(),
             DispatchMode::WholeRoute,
             None,
             decision_context("77777777-7777-4777-8777-777777777777"),
@@ -224,6 +229,7 @@ fn admitted_route_without_a_plan_is_a_hard_error() {
                 execution_plan: None,
             },
             None,
+            Vec::new(),
             DispatchMode::WholeRoute,
             None,
             decision_context("77777777-7777-4777-8777-777777777778"),
@@ -255,6 +261,7 @@ fn admitted_route_with_an_unbounded_plan_reports_a_plan_denial_instead_of_runnin
                 execution_plan: Some(&plan),
             },
             None,
+            Vec::new(),
             DispatchMode::WholeRoute,
             None,
             decision_context("77777777-7777-4777-8777-777777777779"),
@@ -288,6 +295,7 @@ fn per_step_dispatch_mode_dispatches_each_declared_step_and_completes() {
             Some(AdapterSelection::LocalFileWrite {
                 delivery_root: delivery_root.clone(),
             }),
+            Vec::new(),
             DispatchMode::PerStep,
             None,
             decision_context("77777777-7777-4777-8777-77777777777a"),
@@ -393,6 +401,7 @@ fn per_step_dispatch_mode_reports_partial_success_for_a_step_with_no_adapter() {
             Some(AdapterSelection::LocalFileWrite {
                 delivery_root: delivery_root.clone(),
             }),
+            Vec::new(),
             DispatchMode::PerStep,
             None,
             decision_context("77777777-7777-4777-8777-77777777777b"),
@@ -415,4 +424,68 @@ fn per_step_dispatch_mode_reports_partial_success_for_a_step_with_no_adapter() {
     );
 
     fs::remove_dir_all(&delivery_root).ok();
+}
+
+#[test]
+fn per_step_dispatch_mode_completes_a_heterogeneous_plan_via_additional_adapters() {
+    let request = support::load_fixture_json("valid", "execution-request-basic.json");
+    let requester_trust = support::load_fixture_json("valid", "requester-trust-basic.json");
+    let policy = support::load_fixture_json("valid", "policy-artifact-basic.json");
+
+    let second_capability_id = "88888888-8888-4888-8888-888888888888";
+    let mut capability_registry =
+        support::load_fixture_json("valid", "capability-registry-basic.json");
+    let mut second_capability = capability_registry["capabilities"][0].clone();
+    second_capability["capability_id"] = serde_json::json!(second_capability_id);
+    capability_registry["capabilities"]
+        .as_array_mut()
+        .unwrap()
+        .push(second_capability);
+
+    let plan = plan_json_with_computed_hash(
+        &[
+            ("step_a", "44444444-4444-4444-8444-444444444444"),
+            ("step_b", second_capability_id),
+        ],
+        &["44444444-4444-4444-8444-444444444444", second_capability_id],
+    );
+
+    let delivery_root = temp_dir("per-step-multi-adapter-delivery-root");
+    let second_delivery_root = temp_dir("per-step-multi-adapter-second-delivery-root");
+
+    let outcome = ExecutionPipelineService
+        .run(
+            ExecutionPipelineInputs {
+                request: &request,
+                requester_trust: &requester_trust,
+                policy: &policy,
+                capability_registry: &capability_registry,
+                execution_plan: Some(&plan),
+            },
+            // Registers the route's own capability (44444444...) as usual.
+            Some(AdapterSelection::LocalFileWrite {
+                delivery_root: delivery_root.clone(),
+            }),
+            // Registers a second, distinct adapter for step_b's own
+            // capability (88888888...), which the route's own adapter
+            // selection above cannot reach.
+            vec![CapabilityScopedAdapterSelection {
+                capability_id: fa_local::CapabilityId::from_uuid(
+                    Uuid::parse_str(second_capability_id).unwrap(),
+                ),
+                selection: AdapterSelection::LocalFileWrite {
+                    delivery_root: second_delivery_root.clone(),
+                },
+            }],
+            DispatchMode::PerStep,
+            None,
+            decision_context("77777777-7777-4777-8777-77777777777c"),
+        )
+        .unwrap();
+
+    let trace = outcome.execution_trace.unwrap();
+    assert_eq!(trace.final_status().status.state, ExecutionState::Completed);
+
+    fs::remove_dir_all(&delivery_root).ok();
+    fs::remove_dir_all(&second_delivery_root).ok();
 }

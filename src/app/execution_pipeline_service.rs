@@ -23,7 +23,7 @@ use crate::domain::forensics::{RedactionLevel, ValidatedForensicEvent};
 use crate::domain::guards::DenialGuard;
 use crate::domain::posture::RouteResolutionContext;
 use crate::domain::routing::RouteDecision;
-use crate::domain::shared::ApprovalPosture;
+use crate::domain::shared::{ApprovalPosture, CapabilityId};
 use crate::errors::{FaLocalError, FaLocalResult};
 
 /// Which concrete external adapter to use for this run, and its config, with
@@ -41,6 +41,18 @@ pub enum AdapterSelection {
     },
 }
 
+/// An [`AdapterSelection`] registered under an explicitly declared
+/// capability, rather than the route's own top-level requested capability.
+/// This is how a heterogeneous multi-capability plan gets more than one
+/// adapter registered for [`DispatchMode::PerStep`] delivery: each entry's
+/// `capability_id` should match a declared plan step's own `capability_id`,
+/// not necessarily the route's.
+#[derive(Debug, Clone)]
+pub struct CapabilityScopedAdapterSelection {
+    pub capability_id: CapabilityId,
+    pub selection: AdapterSelection,
+}
+
 /// Which `ExecutionService` coordination call delivers an admitted route:
 /// the whole plan in one call to a single adapter resolved for the route's
 /// own top-level capability, or one call per declared step, each resolved
@@ -48,8 +60,8 @@ pub enum AdapterSelection {
 /// [`AdapterSelection`] (if any) is registered under the route's top-level
 /// capability either way; in `PerStep` mode, a plan step declaring a
 /// *different* capability then truthfully shows as unavailable rather than
-/// silently succeeding, unless a caller building the registry directly
-/// (not through this pipeline) has also registered an adapter for it.
+/// silently succeeding, unless `additional_adapters` on [`ExecutionPipelineService::run`]
+/// also registers an adapter for it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DispatchMode {
     #[default]
@@ -94,6 +106,7 @@ impl ExecutionPipelineService {
         &self,
         inputs: ExecutionPipelineInputs<'_>,
         adapter_selection: Option<AdapterSelection>,
+        additional_adapters: Vec<CapabilityScopedAdapterSelection>,
         dispatch_mode: DispatchMode,
         forensic_export_adapter: Option<&dyn ForensicEventExportAdapter>,
         context: RouteResolutionContext,
@@ -171,18 +184,16 @@ impl ExecutionPipelineService {
         let selected_route = RoutingService.select_route(routing_input)?;
 
         let mut registry = AdapterRegistry::new();
-        if let Some(adapter) = build_adapter(
-            adapter_selection,
-            route_decision
+        if let Some(selection) = adapter_selection {
+            let route_capability_id = route_decision
                 .capability_decision_summary
-                .requested_capability_id,
-        ) {
-            registry.register(
-                route_decision
-                    .capability_decision_summary
-                    .requested_capability_id,
-                adapter,
-            )?;
+                .requested_capability_id;
+            let adapter = build_adapter(selection, route_capability_id);
+            registry.register(route_capability_id, adapter)?;
+        }
+        for entry in additional_adapters {
+            let adapter = build_adapter(entry.selection, entry.capability_id);
+            registry.register(entry.capability_id, adapter)?;
         }
 
         let coordination_context = CoordinationContext::new(
@@ -253,10 +264,10 @@ impl ExecutionPipelineService {
 }
 
 fn build_adapter(
-    selection: Option<AdapterSelection>,
-    supported_capability_id: crate::domain::shared::CapabilityId,
-) -> Option<Box<dyn ExternalRouteDeliveryAdapter>> {
-    selection.map(|selection| match selection {
+    selection: AdapterSelection,
+    supported_capability_id: CapabilityId,
+) -> Box<dyn ExternalRouteDeliveryAdapter> {
+    match selection {
         AdapterSelection::LocalFileWrite { delivery_root } => {
             Box::new(LocalFileWriteDeliveryAdapter::new(
                 LocalFileWriteAdapterConfig::new(supported_capability_id, delivery_root),
@@ -268,5 +279,5 @@ fn build_adapter(
         } => Box::new(NmapPreflightDeliveryAdapter::new(
             NmapPreflightAdapterConfig::new(supported_capability_id, nmap_binary, scan_profile),
         )) as Box<dyn ExternalRouteDeliveryAdapter>,
-    })
+    }
 }

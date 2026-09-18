@@ -55,7 +55,8 @@ use fa_local::adapters::exports::jsonl_forensic_export::{
 use fa_local::adapters::exports::sqlite_forensic_store::SqliteForensicStore;
 use fa_local::app::decision_service::DecisionService;
 use fa_local::app::execution_pipeline_service::{
-    AdapterSelection, ExecutionPipelineInputs, ExecutionPipelineService,
+    AdapterSelection, CapabilityScopedAdapterSelection, ExecutionPipelineInputs,
+    ExecutionPipelineService,
 };
 use fa_local::app::intake_service::IntakeService;
 use fa_local::domain::posture::RouteResolutionContext;
@@ -248,6 +249,16 @@ fn main() {
                 }
             };
 
+            let additional_adapters: Vec<CapabilityScopedAdapterSelection> = args
+                .windows(2)
+                .filter(|w| w[0] == "--adapter")
+                .map(|w| parse_capability_scoped_adapter(&w[1]))
+                .collect::<Result<Vec<_>, String>>()
+                .unwrap_or_else(|e| {
+                    eprintln!("error: {e}");
+                    process::exit(1);
+                });
+
             let forensic_export_path = flag_path("--forensic-export");
             let forensic_sqlite_path = flag_path("--forensic-sqlite");
             let forensic_sink = match (forensic_export_path, forensic_sqlite_path) {
@@ -290,6 +301,7 @@ fn main() {
                     execution_plan: plan.as_ref(),
                 },
                 adapter_selection,
+                additional_adapters,
                 dispatch_mode,
                 forensic_export_adapter,
                 RouteResolutionContext::default(),
@@ -514,6 +526,16 @@ fn main() {
             eprintln!(
                 "  --per-step-dispatch              Dispatch each declared plan step to its own capability-scoped adapter, one call per step, instead of one call for the whole plan"
             );
+            eprintln!(
+                "  --adapter <CAP_UUID>:<KIND>:<PARAMS>  Register an additional adapter for an explicit capability (repeatable); most useful with --per-step-dispatch on a heterogeneous plan"
+            );
+            eprintln!("      KIND=local-file-write:  PARAMS=<DIR>");
+            eprintln!(
+                "      KIND=nmap-preflight:    PARAMS=<BINARY>[:<loopback|private-subnet>] (default: loopback)"
+            );
+            eprintln!(
+                "      DIR and BINARY must not themselves contain ':' -- the value is split on ':'"
+            );
             eprintln!("");
             eprintln!("OPTIONS FOR forensics-query:");
             eprintln!("  --sqlite <FILE>              SQLite forensic store to query (required)");
@@ -558,5 +580,72 @@ fn read_json_file(path: &str) -> Value {
     serde_json::from_slice(&bytes).unwrap_or_else(|e| {
         eprintln!("error: could not parse {path:?} as JSON: {e}");
         process::exit(1);
+    })
+}
+
+/// Parses one `--adapter <CAP_UUID>:<KIND>:<PARAMS>` value. `PARAMS` is
+/// `<DIR>` for `local-file-write` or `<BINARY>[:<loopback|private-subnet>]`
+/// for `nmap-preflight`; the value is split on `:`, so neither `DIR` nor
+/// `BINARY` may themselves contain a `:`.
+fn parse_capability_scoped_adapter(
+    value: &str,
+) -> Result<CapabilityScopedAdapterSelection, String> {
+    let parts: Vec<&str> = value.split(':').collect();
+    if parts.len() < 3 {
+        return Err(format!(
+            "invalid --adapter value {value:?} (expected <CAPABILITY_UUID>:<local-file-write|nmap-preflight>:<PARAMS>)"
+        ));
+    }
+
+    let capability_id = parts[0]
+        .parse::<uuid::Uuid>()
+        .map(fa_local::CapabilityId::from_uuid)
+        .map_err(|e| format!("invalid --adapter capability id {:?}: {e}", parts[0]))?;
+
+    let selection = match parts[1] {
+        "local-file-write" => {
+            if parts.len() != 3 {
+                return Err(format!(
+                    "invalid --adapter value {value:?}: local-file-write takes exactly one parameter, the delivery directory"
+                ));
+            }
+            AdapterSelection::LocalFileWrite {
+                delivery_root: parts[2].into(),
+            }
+        }
+        "nmap-preflight" => {
+            if parts.len() < 3 || parts.len() > 4 {
+                return Err(format!(
+                    "invalid --adapter value {value:?}: nmap-preflight takes <BINARY>[:<loopback|private-subnet>]"
+                ));
+            }
+            let scan_profile = match parts.get(3) {
+                None | Some(&"loopback") => {
+                    fa_local::adapters::execution_delivery::nmap_preflight::NmapScanProfile::LoopbackTcpConnectV1
+                }
+                Some(&"private-subnet") => {
+                    fa_local::adapters::execution_delivery::nmap_preflight::NmapScanProfile::AuthorizedPrivateSubnetTcpConnectV1
+                }
+                Some(other) => {
+                    return Err(format!(
+                        "invalid --adapter nmap profile {other:?} (expected loopback or private-subnet)"
+                    ));
+                }
+            };
+            AdapterSelection::NmapPreflight {
+                nmap_binary: parts[2].into(),
+                scan_profile,
+            }
+        }
+        other => {
+            return Err(format!(
+                "unknown --adapter kind {other:?} (expected local-file-write or nmap-preflight)"
+            ));
+        }
+    };
+
+    Ok(CapabilityScopedAdapterSelection {
+        capability_id,
+        selection,
     })
 }

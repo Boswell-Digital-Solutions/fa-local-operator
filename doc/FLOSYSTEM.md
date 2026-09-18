@@ -120,7 +120,8 @@ It currently includes:
 - bounded forensic recorder/export workflow over already-known execution truth
 - append-only local JSONL forensic export sink, one compact record per line, reporting an unavailable sink as a fail-closed error rather than dropping the event
 - per-step, per-capability adapter dispatch and coordination (`ExecutionService::deliver_plan_per_step_via_registry`): a plan whose steps span different capabilities is dispatched one step at a time, resolving each step's own adapter from the registry, and the per-step outcomes are aggregated into one truthful final status — `Completed` only when every step completed, `PartialSuccess`/`degraded_partial` for any real mix of completed and not-completed steps, and `Failed`/`Canceled`/`Degraded` chosen from whichever steps were actually attempted (not ones skipped after an earlier step stopped the run) when zero steps completed; `cancellation_policy` governs whether a failure stops later steps from being attempted at all
-- `fa-local-run execute --per-step-dispatch`: an operator-chosen flag selecting per-step dispatch over the pipeline's default single whole-route call; the configured adapter is still registered only under the route's own top-level capability, so a step declaring a different capability truthfully reports as unavailable rather than silently succeeding
+- `fa-local-run execute --per-step-dispatch`: an operator-chosen flag selecting per-step dispatch over the pipeline's default single whole-route call; the configured adapter is registered under the route's own top-level capability, so a step declaring a different capability truthfully reports as unavailable rather than silently succeeding, unless an adapter for that capability is registered separately (see `--adapter` below)
+- `fa-local-run execute --adapter <CAPABILITY_UUID>:<local-file-write|nmap-preflight>:<PARAMS>`: a repeatable flag registering an additional adapter under an explicitly declared capability (`ExecutionPipelineService::run`'s `additional_adapters: Vec<CapabilityScopedAdapterSelection>`), alongside the route's own implicit one; a heterogeneous multi-capability plan run with `--per-step-dispatch` no longer needs every adapter registered by hand through the library API
 - queryable local forensic store backed by bundled SQLite (`SqliteForensicStore`), indexed by `correlation_id` and `event_type`, round-tripping the same already-minimal `ForensicEvent` encoding used by the JSONL sink; exposed as an alternative `--forensic-sqlite` export sink on `fa-local-run execute` and queried back out via `fa-local-run forensics-query`
 - `fa-local-run route` CLI command wiring intake, requester-trust evaluation, policy loading, and capability admission into one resolved route decision from raw untrusted JSON files, exit-coded on whether the resolved posture admits execution
 - `fa-local-run execute` CLI command wiring `route` through plan validation, `AdapterRegistry`-backed dispatch, and forensic recording/export in one bounded run: denied and review-required routes stop with a truthful forensic record and no plan is ever touched; an unbounded plan reports a plan denial instead of running; an admitted route with no adapter registered for its capability degrades truthfully rather than fabricating success
@@ -134,7 +135,6 @@ What is still intentionally not delivered:
 
 - broad cross-service adapter integrations
 - declared-fallback coordination across steps dispatched to different adapters
-- CLI configuration of more than one adapter per run (heterogeneous multi-capability plans still need every relevant adapter registered by hand through the library API, not through `execute`'s flags)
 - daemon or API surfaces
 - persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state across restarts)
 
@@ -283,10 +283,10 @@ Phase X4 added:
 - `DecisionService` in `src/app/decision_service.rs` — composes intake, requester-trust evaluation, policy loading, and capability admission into one resolved `RouteDecision` from raw JSON inputs.
 - `AdapterRegistry` in `src/adapters/execution_delivery/registry.rs` — a capability-to-adapter dispatch table; `ExecutionService::deliver_selected_route_via_registry` resolves one adapter for a whole route, and `ExecutionService::deliver_plan_per_step_via_registry` resolves one adapter per declared plan step, aggregating per-step outcomes (including `PartialSuccess`) truthfully.
 - `JsonlForensicExportAdapter` (`src/adapters/exports/jsonl_forensic_export.rs`) and `SqliteForensicStore` (`src/adapters/exports/sqlite_forensic_store.rs`) — an append-only local JSONL sink and a queryable local SQLite store (bundled `rusqlite`, indexed by `correlation_id` and `event_type`), both implementing `ForensicEventExportAdapter`.
-- `ExecutionPipelineService` in `src/app/execution_pipeline_service.rs` — composes all of the above into one bounded run: resolve a route decision, and only when it admits execution, validate the plan, dispatch through the adapter registry, and record forensic evidence for every truthful outcome (denied, review-required, plan-invalid, and admitted paths alike).
-- `fa-local-run` CLI binary (`src/bin/fa_local_run.rs`) — `validate`, `route`, `execute` (plan validation, adapter dispatch via `--local-file-write-root`/`--nmap-binary`, `--per-step-dispatch`, forensic export via `--forensic-export`/`--forensic-sqlite`), `forensics-query`, `status`, and `canonical-status` (FC-LTA-P007's external service-status projection, see below).
+- `ExecutionPipelineService` in `src/app/execution_pipeline_service.rs` — composes all of the above into one bounded run: resolve a route decision, and only when it admits execution, validate the plan, dispatch through the adapter registry, and record forensic evidence for every truthful outcome (denied, review-required, plan-invalid, and admitted paths alike). `run()` takes both an optional implicit `AdapterSelection` (registered under the route's own top-level capability) and `additional_adapters: Vec<CapabilityScopedAdapterSelection>`, each registered under its own explicitly declared capability — how a heterogeneous multi-capability plan gets more than one adapter without hand-building the registry through the library API.
+- `fa-local-run` CLI binary (`src/bin/fa_local_run.rs`) — `validate`, `route`, `execute` (plan validation, adapter dispatch via `--local-file-write-root`/`--nmap-binary`, `--per-step-dispatch`, repeatable `--adapter <CAPABILITY_UUID>:<local-file-write|nmap-preflight>:<PARAMS>` for additional capability-scoped adapters, forensic export via `--forensic-export`/`--forensic-sqlite`), `forensics-query`, `status`, and `canonical-status` (FC-LTA-P007's external service-status projection, see below).
 
-The Nmap preflight adapter is bounded to a declared `local_process_spawn` capability and execution plan, does not run scans, does not accept free-form arguments, and does not create a networked daemon surface. Missing `nmap` runtime truth can be represented as a degraded execution status and recorded through the existing minimized forensic-event path. The review-package emitter remains intentionally bounded to the two current review postures only and does not introduce generic workflow behavior beyond `review_required` and `explicit_operator_approval`. Still not delivered: broad cross-service adapter integrations, declared-fallback coordination across per-step-dispatched adapters, CLI configuration of more than one adapter per `execute` run, a daemon/API surface, and persistence beyond forensic evidence.
+The Nmap preflight adapter is bounded to a declared `local_process_spawn` capability and execution plan, does not run scans, does not accept free-form arguments, and does not create a networked daemon surface. Missing `nmap` runtime truth can be represented as a degraded execution status and recorded through the existing minimized forensic-event path. The review-package emitter remains intentionally bounded to the two current review postures only and does not introduce generic workflow behavior beyond `review_required` and `explicit_operator_approval`. Still not delivered: broad cross-service adapter integrations, declared-fallback coordination across per-step-dispatched adapters, a daemon/API surface, and persistence beyond forensic evidence.
 
 The execution bridge writeback path (`DfLocalAdapter::post_execution_status_event`) is present as a typed stub — the DataForge Local staging endpoint is pending Phase X4 completion on the DataForge side.
 
@@ -847,13 +847,13 @@ It adds:
 
 ## Not yet delivered
 
-Multi-adapter dispatch (`AdapterRegistry`), per-step multi-capability coordination, and concrete
-forensic export sinks (JSONL and SQLite) are now delivered — see the "current bounded baseline"
-list in `doc/system/00_overview/01-overview-charter.md`. Still not delivered:
+Multi-adapter dispatch (`AdapterRegistry`), per-step multi-capability coordination, concrete
+forensic export sinks (JSONL and SQLite), and CLI configuration of more than one adapter per
+`execute` run are now delivered — see the "current bounded baseline" list in
+`doc/system/00_overview/01-overview-charter.md`. Still not delivered:
 
 - broad cross-service adapter integrations (adapters reaching real peer services, not local-only delivery)
 - declared-fallback coordination across steps dispatched to different adapters in the per-step delivery path
-- CLI configuration of more than one adapter per `execute` run
 - daemon or networked API surface
 - persistence layer beyond forensic evidence
 - DataForge Local staging endpoint wiring for execution_status_event writeback (Phase X4 DataForge side)

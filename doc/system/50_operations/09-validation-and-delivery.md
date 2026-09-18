@@ -108,13 +108,13 @@ It adds:
 
 ## Not yet delivered
 
-Multi-adapter dispatch (`AdapterRegistry`), per-step multi-capability coordination, and concrete
-forensic export sinks (JSONL and SQLite) are now delivered — see the "current bounded baseline"
-list in `doc/system/00_overview/01-overview-charter.md`. Still not delivered:
+Multi-adapter dispatch (`AdapterRegistry`), per-step multi-capability coordination, concrete
+forensic export sinks (JSONL and SQLite), and CLI configuration of more than one adapter per
+`execute` run are now delivered — see the "current bounded baseline" list in
+`doc/system/00_overview/01-overview-charter.md`. Still not delivered:
 
 - broad cross-service adapter integrations (adapters reaching real peer services, not local-only delivery)
 - declared-fallback coordination across steps dispatched to different adapters in the per-step delivery path
-- CLI configuration of more than one adapter per `execute` run
 - daemon or networked API surface
 - persistence layer beyond forensic evidence
 - DataForge Local staging endpoint wiring for execution_status_event writeback (Phase X4 DataForge side)
