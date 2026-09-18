@@ -98,4 +98,17 @@ Not yet delivered, in no particular priority order:
 2. A daemon or networked API surface (FA Local stays a CLI binary with no HTTP surface by
    doctrine; this would need an explicit, separately-authorized architectural decision).
 3. A persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state
-   across restarts).
+   across restarts) — **blocked on item 2, not independently actionable**. `forge-local-runtime`'s
+   accepted boundary doctrine (`BOUNDARIES.md`, `ARCHITECTURE.md`, `DECISIONS/0005-falocal-boundary.md`)
+   already settles *who* would own it: FA Local's own "does not own" list explicitly names
+   "hidden persistence authority," and DF Local Foundation is the accepted owner of "local
+   database lifecycle, migrations, backup/restore/export doctrine... bounded recovery and
+   integrity support." What doesn't yet exist is a live gap to solve: FA Local is a CLI, not a
+   daemon, and every invocation takes its policy, capability-registry, and requester-trust inputs
+   as file arguments and exits — there is no in-memory process state to lose across restarts.
+   DataForge Local's only FA-Local-facing route today (`POST /api/v1/execution-bridge/status-events`,
+   Phase X4) is write-only staging, with no read-back surface, and was never meant to be one (its
+   own docstring: "performs storage mechanics only... does not re-derive or second-guess FA
+   Local's own execution semantics"). A durable-state proposal only becomes concrete once item 2
+   is itself authorized and defines what state a running FA Local process would actually need to
+   survive a restart.
