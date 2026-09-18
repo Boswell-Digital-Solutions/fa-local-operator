@@ -135,3 +135,48 @@ confirmed it now completes normally (`exit=0`) instead of hard-erroring.
 **Scope:** closed. Changed `src/domain/status/mod.rs`, `src/domain/forensics/mod.rs`,
 `src/domain/friction/mod.rs`, `tests/execution_status_invariants.rs`, and
 `tests/forensic_event_invariants.rs`.
+
+---
+
+## KI-FLO-20260918-004 — shelling out to an external `kill` binary silently no-ops for process-group signals in this dev sandbox
+
+**Date found:** 2026-09-18
+**Status:** closed (fixed same session, before ever shipping the broken version)
+
+**What is wrong:** `CortexSubprocessGnatShardAdapter`'s deadline enforcement
+(`src/integrations/cortex/shard_dispatch.rs`) needs to kill a whole process group when a Cortex
+Gnat shard subprocess outruns its `deadline_ms` -- `Child::kill()` alone only signals the one
+process directly spawned, and the Python interpreter it runs can itself fork further processes
+(a shell wrapping the interpreter, for instance) that survive the direct kill and keep the
+stdout/stderr pipes open indefinitely, defeating the deadline entirely. The first implementation
+put the child in its own process group at spawn time (`std::os::unix::process::CommandExt::process_group(0)`,
+stable stdlib) and signaled it by spawning `Command::new("kill").arg("-9").arg(format!("-{pid}"))`
+-- shelling out to the external `kill` binary rather than a syscall. That spawned `kill` process
+reported exit code 0 (success) on every invocation, but the target process group was still alive
+afterward every time, reproduced both in a `cargo test` unit test (a fake shell script sleeping
+10s past a 200ms deadline; the test blocked for the full 10s) and in a manual, minimal repro
+outside any FA Local code (`/usr/bin/kill -9 -$PGID` against a plain backgrounded `sleep`, in this
+same sandboxed dev environment: exit code 0, process still alive). Bash's own `kill` *builtin*
+(not the external binary) delivered the identical signal correctly in the same shell session,
+confirming the gap is specific to a spawned `kill` *process* attempting a group-signal in this
+sandbox, not group-signaling in general.
+
+**Root cause:** Not fully understood at the syscall level (no visibility into why this specific
+sandbox differentiates a builtin's `kill()` call from an external process's `kill()` call for a
+negative-pid target), but conclusively reproduced and narrow: `Child::kill()` (std's own direct
+single-process kill, used internally by the same code path) worked correctly every time, ruling
+out kill-signal delivery being broken in general in this environment.
+
+**Fix:** Stopped shelling out to an external `kill` binary. `kill_process_group` now calls
+`libc::kill(-(pid as libc::pid_t), libc::SIGKILL)` directly (one `unsafe` block, plain integer
+arguments, no pointers) from within the same process that already successfully calls
+`Child::kill()` -- added the `libc` crate as a new dependency for this. The same unit test that
+reproduced the bug (10s to return) now passes in 0.2s; also live-verified against the real COR
+checkout with a shard given a 1ms deadline: the real subprocess is killed promptly
+(`dispatch_unavailable`, forensic event recorded), while a sibling shard with a normal deadline
+in the same run still completes.
+
+**Scope:** closed. Changed `Cargo.toml` (added `libc`) and
+`src/integrations/cortex/shard_dispatch.rs`. Worth remembering for any other local-plane tooling
+in this ecosystem that shells out to `kill` (or any external signal-delivery binary) for
+process-group management on this class of dev machine -- prefer a direct `libc` syscall.

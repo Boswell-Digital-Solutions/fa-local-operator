@@ -151,7 +151,9 @@ Every run is also recorded as forensic truth via `integrations::cortex::GnatDisp
 
 Live-verified end to end: a real dispatch run against the COR checkout produced exactly 3 forensic events (1 negotiation + 2 shard), each independently valid against `gnat-dispatch-forensic-event.schema.json`.
 
-Still not delivered: an export sink for Gnat dispatch forensic events, and deadline/timeout enforcement on the subprocess call (a disclosed gap — the call blocks until Cortex's CLI exits on its own).
+The dispatch subprocess call is deadline-bounded: `CortexSubprocessGnatShardAdapter` puts the spawned Python interpreter in its own process group (`process_group(0)`) at spawn time, and `wait_with_deadline` polls for exit against the shard's own `deadline_ms`, killing the whole group (`libc::kill(-pid, SIGKILL)`, called directly rather than by shelling out to an external `kill` binary) if it's exceeded. `Child::kill()` alone only reaches the one process spawned directly; the interpreter can itself fork further processes (a shell wrapping it, say) that would otherwise survive and keep the stdout/stderr reader threads blocked indefinitely, defeating the deadline entirely — confirmed by direct reproduction (`KI-FLO-20260918-004`): the shelled-out `kill` binary reported success but delivered nothing in this crate's own sandboxed dev environment, while `Child::kill()`, called from the same process, worked correctly throughout. Live-verified against the real COR checkout: a shard given a 1ms deadline is killed promptly (`dispatch_unavailable`) while a sibling shard with a normal deadline in the same run still completes.
+
+Still not delivered: an export sink for Gnat dispatch forensic events.
 
 The execution bridge writeback path (`DfLocalAdapter::post_execution_status_event`) is present as a typed stub — the DataForge Local staging endpoint is pending Phase X4 completion on the DataForge side.
 
