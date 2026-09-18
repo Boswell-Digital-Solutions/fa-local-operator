@@ -118,7 +118,7 @@ The current pure logic layer can already:
 - preserve explicit operator-action semantics without inventing workflow authorship
 - require explicit linkage or omission rules for review-package, plan-hash, and denial surfaces inside friction payloads
 
-These checks remain bounded to validation, deny-path admission, pure decision output, bounded plan fingerprinting, truthful status shaping, deterministic internal routing, bounded internal coordination, explicit adapter-backed delivery over already selected admitted routes, one concrete capability-scoped local-file-write adapter, one concrete Nmap preflight adapter that only reports declared local runtime availability, one bounded review-package emitter workflow for contract-compatible review-required and explicit-approval paths, and one bounded forensic recorder/export workflow over already-known execution truth.
+These checks remain bounded to validation, deny-path admission, pure decision output, bounded plan fingerprinting, truthful status shaping, deterministic internal routing, bounded internal coordination, explicit adapter-backed delivery over already selected admitted routes, a capability-scoped `AdapterRegistry` resolving one adapter per capability (both for a whole route in one call and per declared plan step), one concrete capability-scoped local-file-write adapter, one concrete Nmap preflight adapter that only reports declared local runtime availability, one bounded review-package emitter workflow for contract-compatible review-required and explicit-approval paths, and one bounded forensic recorder/export workflow over already-known execution truth, exported to an append-only local JSONL sink or a queryable local SQLite store.
 They still do not perform semantic interpretation, planner behavior, or unbounded external invocation.
 
 ## Current implementation boundary
@@ -127,9 +127,13 @@ All currently planned baseline contracts now exist in schema-backed form.
 
 Phase X4 added:
 - `IntakeService` in `src/app/intake_service.rs` — the schema-validated entry point for external execution requests. It wraps `ExecutionRequest::load_contract_value()` and provides both `validate_request(&Value)` and `validate_request_bytes(&[u8])` convenience methods.
-- `fa-local-run` CLI binary (`src/bin/fa_local_run.rs`) — a synchronous binary providing `validate` and `status` subcommands for local operator use, plus `canonical-status` (FC-LTA-P007's external service-status projection, see below).
+- `DecisionService` in `src/app/decision_service.rs` — composes intake, requester-trust evaluation, policy loading, and capability admission into one resolved `RouteDecision` from raw JSON inputs.
+- `AdapterRegistry` in `src/adapters/execution_delivery/registry.rs` — a capability-to-adapter dispatch table; `ExecutionService::deliver_selected_route_via_registry` resolves one adapter for a whole route, and `ExecutionService::deliver_plan_per_step_via_registry` resolves one adapter per declared plan step, aggregating per-step outcomes (including `PartialSuccess`) truthfully.
+- `JsonlForensicExportAdapter` (`src/adapters/exports/jsonl_forensic_export.rs`) and `SqliteForensicStore` (`src/adapters/exports/sqlite_forensic_store.rs`) — an append-only local JSONL sink and a queryable local SQLite store (bundled `rusqlite`, indexed by `correlation_id` and `event_type`), both implementing `ForensicEventExportAdapter`.
+- `ExecutionPipelineService` in `src/app/execution_pipeline_service.rs` — composes all of the above into one bounded run: resolve a route decision, and only when it admits execution, validate the plan, dispatch through the adapter registry, and record forensic evidence for every truthful outcome (denied, review-required, plan-invalid, and admitted paths alike).
+- `fa-local-run` CLI binary (`src/bin/fa_local_run.rs`) — `validate`, `route`, `execute` (plan validation, adapter dispatch via `--local-file-write-root`/`--nmap-binary`, `--per-step-dispatch`, forensic export via `--forensic-export`/`--forensic-sqlite`), `forensics-query`, `status`, and `canonical-status` (FC-LTA-P007's external service-status projection, see below).
 
-There is no persistence layer, no concrete forensic export sink, and no multi-adapter dispatch or runtime selection surface in the current baseline. The Nmap preflight adapter is bounded to a declared `local_process_spawn` capability and execution plan, does not run scans, does not accept free-form arguments, and does not create a networked daemon surface. Missing `nmap` runtime truth can be represented as a degraded execution status and recorded through the existing minimized forensic-event path. The review-package emitter remains intentionally bounded to the two current review postures only and does not introduce generic workflow behavior beyond `review_required` and `explicit_operator_approval`.
+The Nmap preflight adapter is bounded to a declared `local_process_spawn` capability and execution plan, does not run scans, does not accept free-form arguments, and does not create a networked daemon surface. Missing `nmap` runtime truth can be represented as a degraded execution status and recorded through the existing minimized forensic-event path. The review-package emitter remains intentionally bounded to the two current review postures only and does not introduce generic workflow behavior beyond `review_required` and `explicit_operator_approval`. Still not delivered: broad cross-service adapter integrations, declared-fallback coordination across per-step-dispatched adapters, CLI configuration of more than one adapter per `execute` run, a daemon/API surface, and persistence beyond forensic evidence.
 
 The execution bridge writeback path (`DfLocalAdapter::post_execution_status_event`) is present as a typed stub — the DataForge Local staging endpoint is pending Phase X4 completion on the DataForge side.
 
@@ -137,7 +141,7 @@ The execution bridge writeback path (`DfLocalAdapter::post_execution_status_even
 
 FA Local exposes this projection through `domain::service_status::build_canonical_service_status_envelope()`, reached from the `fa-local-run canonical-status` CLI subcommand. Forge_Command reads it the same way it already reads Cortex's projection: as a CLI subprocess. It runs the compiled `fa-local-run` binary with the `canonical-status` argument and parses the one line of JSON on stdout. FA Local adds no HTTP surface for this — it stays a CLI binary only, consistent with `CLAUDE.md`'s "no HTTP surface" doctrine.
 
-FA Local has no existing whole-service status computation to project from — its only status concept, `domain::status::ExecutionStatus`, is per-request. `domain::service_status::operational_facts()` is the single real source of truth this projection and the plain `status` subcommand both read: `execution_enabled: false` (no `execute` subcommand exists in `fa-local-run` yet) and `writeback_wired: false` (`DfLocalAdapter::post_execution_status_event` unconditionally returns `WritebackNotWired` until DataForge Local's Phase X4 endpoint exists). Both facts are structural — the absence of code, not a runtime probe.
+FA Local has no existing whole-service status computation to project from — its only status concept, `domain::status::ExecutionStatus`, is per-request. `domain::service_status::operational_facts()` is the single real source of truth this projection and the plain `status` subcommand both read: `execution_enabled: false` and `writeback_wired: false` (`DfLocalAdapter::post_execution_status_event` unconditionally returns `WritebackNotWired` until DataForge Local's Phase X4 endpoint exists). `writeback_wired: false` is still accurate. `execution_enabled: false` is now stale — a working `execute` subcommand exists — and `operational_facts()` has not been updated to reflect it; see `docs/KNOWN_ISSUES.md`. Both facts remain structural in intent — read from what code exists, not a runtime probe — but the `execution_enabled` fact is currently hardcoded rather than actually derived.
 
 The plain `status` subcommand's old `posture: "policy_first_admission"` field was never derived from a real check and has been removed; it never appears in the canonical projection either.
 
@@ -162,9 +166,14 @@ This section is grounded in:
 - `src/domain/posture/mod.rs`
 - `src/domain/routing/mod.rs`
 - `src/adapters/exports/mod.rs`
+- `src/adapters/exports/jsonl_forensic_export.rs`
+- `src/adapters/exports/sqlite_forensic_store.rs`
 - `src/adapters/execution_delivery/mod.rs`
+- `src/adapters/execution_delivery/registry.rs`
 - `src/adapters/execution_delivery/local_file_write.rs`
 - `src/adapters/execution_delivery/nmap_preflight.rs`
+- `src/app/decision_service.rs`
+- `src/app/execution_pipeline_service.rs`
 - `src/app/execution_service.rs`
 - `src/app/forensic_service.rs`
 - `src/app/intake_service.rs`
