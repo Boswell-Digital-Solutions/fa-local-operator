@@ -41,6 +41,22 @@ pub enum AdapterSelection {
     },
 }
 
+/// Which `ExecutionService` coordination call delivers an admitted route:
+/// the whole plan in one call to a single adapter resolved for the route's
+/// own top-level capability, or one call per declared step, each resolved
+/// from the registry by that step's own capability. The configured
+/// [`AdapterSelection`] (if any) is registered under the route's top-level
+/// capability either way; in `PerStep` mode, a plan step declaring a
+/// *different* capability then truthfully shows as unavailable rather than
+/// silently succeeding, unless a caller building the registry directly
+/// (not through this pipeline) has also registered an adapter for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DispatchMode {
+    #[default]
+    WholeRoute,
+    PerStep,
+}
+
 #[derive(Debug, Clone)]
 pub struct ExecutionPipelineInputs<'a> {
     pub request: &'a Value,
@@ -78,6 +94,7 @@ impl ExecutionPipelineService {
         &self,
         inputs: ExecutionPipelineInputs<'_>,
         adapter_selection: Option<AdapterSelection>,
+        dispatch_mode: DispatchMode,
         forensic_export_adapter: Option<&dyn ForensicEventExportAdapter>,
         context: RouteResolutionContext,
     ) -> FaLocalResult<ExecutionPipelineOutcome> {
@@ -149,7 +166,8 @@ impl ExecutionPipelineService {
             }
         };
 
-        let routing_input = RoutingInput::new(route_decision.clone(), Some(validated_plan))?;
+        let routing_input =
+            RoutingInput::new(route_decision.clone(), Some(validated_plan.clone()))?;
         let selected_route = RoutingService.select_route(routing_input)?;
 
         let mut registry = AdapterRegistry::new();
@@ -172,11 +190,19 @@ impl ExecutionPipelineService {
             context.decided_at_utc,
             context.decided_at_utc,
         );
-        let execution_trace = ExecutionService.deliver_selected_route_via_registry(
-            &selected_route,
-            &registry,
-            coordination_context,
-        )?;
+        let execution_trace = match dispatch_mode {
+            DispatchMode::WholeRoute => ExecutionService.deliver_selected_route_via_registry(
+                &selected_route,
+                &registry,
+                coordination_context,
+            )?,
+            DispatchMode::PerStep => ExecutionService.deliver_plan_per_step_via_registry(
+                &selected_route,
+                &validated_plan,
+                &registry,
+                coordination_context,
+            )?,
+        };
 
         for status in &execution_trace.statuses {
             forensic_records.push(self.record(
