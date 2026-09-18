@@ -27,7 +27,10 @@
 //!   --capability-registry capability-registry.json \
 //!   --plan execution-plan.json \
 //!   --local-file-write-root ./delivery \
-//!   --forensic-export ./forensics.jsonl
+//!   --forensic-sqlite ./forensics.sqlite3
+//!
+//! # Query the recorded forensic events back out
+//! fa-local-run forensics-query --sqlite ./forensics.sqlite3 --event-type execution_status_observed
 //!
 //! # Check FA Local contract posture and emit a structured status report
 //! fa-local-run status
@@ -45,9 +48,11 @@ use std::io::{self, Read};
 use std::process;
 
 use fa_local::ExecutionState;
+use fa_local::adapters::exports::ForensicEventExportAdapter;
 use fa_local::adapters::exports::jsonl_forensic_export::{
     JsonlForensicExportAdapter, JsonlForensicExportAdapterConfig,
 };
+use fa_local::adapters::exports::sqlite_forensic_store::SqliteForensicStore;
 use fa_local::app::decision_service::DecisionService;
 use fa_local::app::execution_pipeline_service::{
     AdapterSelection, ExecutionPipelineInputs, ExecutionPipelineService,
@@ -58,6 +63,11 @@ use fa_local::domain::service_status;
 use serde_json::Value;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+enum ForensicSink {
+    Jsonl(JsonlForensicExportAdapter),
+    Sqlite(SqliteForensicStore),
+}
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -239,9 +249,31 @@ fn main() {
             };
 
             let forensic_export_path = flag_path("--forensic-export");
-            let forensic_export_adapter = forensic_export_path.map(|path| {
-                JsonlForensicExportAdapter::new(JsonlForensicExportAdapterConfig::new(path.into()))
-            });
+            let forensic_sqlite_path = flag_path("--forensic-sqlite");
+            let forensic_sink = match (forensic_export_path, forensic_sqlite_path) {
+                (Some(_), Some(_)) => {
+                    eprintln!(
+                        "error: --forensic-export and --forensic-sqlite are mutually exclusive"
+                    );
+                    process::exit(1);
+                }
+                (Some(path), None) => Some(ForensicSink::Jsonl(JsonlForensicExportAdapter::new(
+                    JsonlForensicExportAdapterConfig::new(path.into()),
+                ))),
+                (None, Some(path)) => Some(ForensicSink::Sqlite(
+                    SqliteForensicStore::open(std::path::Path::new(path)).unwrap_or_else(|e| {
+                        eprintln!("error: could not open forensic sqlite store {path:?}: {e}");
+                        process::exit(1);
+                    }),
+                )),
+                (None, None) => None,
+            };
+            let forensic_export_adapter: Option<&dyn ForensicEventExportAdapter> =
+                match &forensic_sink {
+                    Some(ForensicSink::Jsonl(adapter)) => Some(adapter),
+                    Some(ForensicSink::Sqlite(store)) => Some(store),
+                    None => None,
+                };
 
             match ExecutionPipelineService.run(
                 ExecutionPipelineInputs {
@@ -252,9 +284,7 @@ fn main() {
                     execution_plan: plan.as_ref(),
                 },
                 adapter_selection,
-                forensic_export_adapter.as_ref().map(|adapter| {
-                    adapter as &dyn fa_local::adapters::exports::ForensicEventExportAdapter
-                }),
+                forensic_export_adapter,
                 RouteResolutionContext::default(),
             ) {
                 Ok(outcome) => {
@@ -304,6 +334,72 @@ fn main() {
                         serde_json::to_string_pretty(&output).expect("output serializes")
                     );
                     process::exit(exit_code);
+                }
+                Err(e) => {
+                    eprintln!("{{");
+                    eprintln!("  \"status\": \"error\",");
+                    eprintln!("  \"error\": \"{e}\"");
+                    eprintln!("}}");
+                    process::exit(1);
+                }
+            }
+        }
+
+        Some("forensics-query") => {
+            let flag_path = |flag: &str| -> Option<&str> {
+                args.windows(2)
+                    .find(|w| w[0] == flag)
+                    .map(|w| w[1].as_str())
+            };
+
+            let sqlite_path = flag_path("--sqlite").unwrap_or_else(|| {
+                eprintln!("error: forensics-query requires --sqlite");
+                process::exit(1);
+            });
+            let store = SqliteForensicStore::open(std::path::Path::new(sqlite_path))
+                .unwrap_or_else(|e| {
+                    eprintln!("error: could not open forensic sqlite store {sqlite_path:?}: {e}");
+                    process::exit(1);
+                });
+
+            let correlation_id = flag_path("--correlation-id");
+            let event_type = flag_path("--event-type");
+
+            let result = match (correlation_id, event_type) {
+                (Some(value), None) => {
+                    let correlation_id = value
+                        .parse::<uuid::Uuid>()
+                        .map(fa_local::CorrelationId::from_uuid)
+                        .unwrap_or_else(|e| {
+                            eprintln!("error: invalid --correlation-id {value:?}: {e}");
+                            process::exit(1);
+                        });
+                    store.query_by_correlation_id(correlation_id)
+                }
+                (None, Some(value)) => {
+                    let event_type: fa_local::domain::forensics::ForensicEventType =
+                        serde_json::from_value(serde_json::Value::String(value.to_owned()))
+                            .unwrap_or_else(|e| {
+                                eprintln!("error: invalid --event-type {value:?}: {e}");
+                                process::exit(1);
+                            });
+                    store.query_by_event_type(event_type)
+                }
+                _ => {
+                    eprintln!(
+                        "error: forensics-query requires exactly one of --correlation-id or --event-type"
+                    );
+                    process::exit(1);
+                }
+            };
+
+            match result {
+                Ok(events) => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&events).expect("events serialize")
+                    );
+                    process::exit(0);
                 }
                 Err(e) => {
                     eprintln!("{{");
@@ -371,6 +467,9 @@ fn main() {
                 "  execute           Resolve a route decision and, if admitted, validate the plan, dispatch through an adapter, and record forensic evidence"
             );
             eprintln!(
+                "  forensics-query   Query a SQLite forensic store by correlation-id or event-type"
+            );
+            eprintln!(
                 "  status            Emit a structured FA Local posture and readiness report"
             );
             eprintln!(
@@ -402,6 +501,19 @@ fn main() {
             eprintln!(
                 "  --forensic-export <FILE>         Append every recorded forensic event to this JSONL file"
             );
+            eprintln!(
+                "  --forensic-sqlite <FILE>         Record every forensic event into a queryable SQLite store (mutually exclusive with --forensic-export)"
+            );
+            eprintln!("");
+            eprintln!("OPTIONS FOR forensics-query:");
+            eprintln!("  --sqlite <FILE>              SQLite forensic store to query (required)");
+            eprintln!(
+                "  --correlation-id <UUID>      Return events for this correlation id, oldest first"
+            );
+            eprintln!(
+                "  --event-type <TYPE>          Return events of this type, oldest first (denial_issued, route_decision_resolved, review_package_prepared, execution_status_observed)"
+            );
+            eprintln!("  (exactly one of --correlation-id or --event-type is required)");
             eprintln!("");
             eprintln!("EXIT CODES:");
             eprintln!(

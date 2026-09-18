@@ -18,6 +18,9 @@ pub enum FaLocalError {
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
+    #[error("sqlite error: {0}")]
+    Sqlite(#[from] rusqlite::Error),
+
     #[error("schema compilation failed for {schema}: {message}")]
     SchemaCompile { schema: String, message: String },
 
