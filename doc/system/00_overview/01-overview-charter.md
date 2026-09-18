@@ -71,6 +71,7 @@ It currently includes:
 - capability-scoped adapter registry resolving one runtime-selected adapter per admitted route at dispatch time; fails closed on duplicate capability registration and reports a missing adapter as a truthful degraded status, not a fabricated success
 - bounded forensic recorder/export workflow over already-known execution truth
 - append-only local JSONL forensic export sink, one compact record per line, reporting an unavailable sink as a fail-closed error rather than dropping the event
+- queryable local forensic store backed by bundled SQLite (`SqliteForensicStore`), indexed by `correlation_id` and `event_type`, round-tripping the same already-minimal `ForensicEvent` encoding used by the JSONL sink; exposed as an alternative `--forensic-sqlite` export sink on `fa-local-run execute` and queried back out via `fa-local-run forensics-query`
 - `fa-local-run route` CLI command wiring intake, requester-trust evaluation, policy loading, and capability admission into one resolved route decision from raw untrusted JSON files, exit-coded on whether the resolved posture admits execution
 - `fa-local-run execute` CLI command wiring `route` through plan validation, `AdapterRegistry`-backed dispatch, and forensic recording/export in one bounded run: denied and review-required routes stop with a truthful forensic record and no plan is ever touched; an unbounded plan reports a plan denial instead of running; an admitted route with no adapter registered for its capability degrades truthfully rather than fabricating success
 - pure execution-status validation and construction helpers
@@ -84,8 +85,7 @@ What is still intentionally not delivered:
 - broad cross-service adapter integrations
 - external adapter-backed execution coordination beyond the current bounded delivery seam
 - daemon or API surfaces
-- SQLite-backed queryable forensic storage
-- persistence layer
+- persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state across restarts)
 
 This is the current bounded baseline, not a claim that later execution-facing phases are already delivered.
 

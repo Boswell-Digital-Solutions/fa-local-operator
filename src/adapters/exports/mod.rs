@@ -1,4 +1,5 @@
 pub mod jsonl_forensic_export;
+pub mod sqlite_forensic_store;
 
 use crate::domain::forensics::ValidatedForensicEvent;
 
