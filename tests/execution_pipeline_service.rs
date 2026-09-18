@@ -10,11 +10,12 @@ use fa_local::adapters::exports::jsonl_forensic_export::{
     JsonlForensicExportAdapter, JsonlForensicExportAdapterConfig,
 };
 use fa_local::app::execution_pipeline_service::{
-    AdapterSelection, ExecutionPipelineInputs, ExecutionPipelineService,
+    AdapterSelection, DispatchMode, ExecutionPipelineInputs, ExecutionPipelineService,
 };
+use fa_local::domain::execution::{ExecutionPlan, ExecutionPlanValidator};
 use fa_local::domain::forensics::ForensicEventType;
 use fa_local::domain::posture::RouteResolutionContext;
-use fa_local::{ApprovalPosture, ExecutionState, RouteDecisionId};
+use fa_local::{ApprovalPosture, DegradedSubtype, ExecutionState, RouteDecisionId};
 
 fn decision_time() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2030, 1, 1, 0, 5, 0).unwrap()
@@ -65,6 +66,7 @@ fn admitted_route_with_registered_adapter_completes_and_exports_every_status() {
             Some(AdapterSelection::LocalFileWrite {
                 delivery_root: delivery_root.clone(),
             }),
+            DispatchMode::WholeRoute,
             Some(&export_adapter),
             decision_context("77777777-7777-4777-8777-777777777774"),
         )
@@ -116,6 +118,7 @@ fn admitted_route_with_no_adapter_registered_degrades_truthfully_instead_of_fabr
                 execution_plan: Some(&plan),
             },
             None,
+            DispatchMode::WholeRoute,
             None,
             decision_context("77777777-7777-4777-8777-777777777775"),
         )
@@ -148,6 +151,7 @@ fn denied_route_records_a_denial_issued_forensic_event_and_never_reaches_a_plan(
                 execution_plan: None,
             },
             None,
+            DispatchMode::WholeRoute,
             None,
             decision_context("77777777-7777-4777-8777-777777777776"),
         )
@@ -185,6 +189,7 @@ fn review_required_route_records_a_route_decision_resolved_forensic_event() {
                 execution_plan: None,
             },
             None,
+            DispatchMode::WholeRoute,
             None,
             decision_context("77777777-7777-4777-8777-777777777777"),
         )
@@ -219,6 +224,7 @@ fn admitted_route_without_a_plan_is_a_hard_error() {
                 execution_plan: None,
             },
             None,
+            DispatchMode::WholeRoute,
             None,
             decision_context("77777777-7777-4777-8777-777777777778"),
         )
@@ -249,6 +255,7 @@ fn admitted_route_with_an_unbounded_plan_reports_a_plan_denial_instead_of_runnin
                 execution_plan: Some(&plan),
             },
             None,
+            DispatchMode::WholeRoute,
             None,
             decision_context("77777777-7777-4777-8777-777777777779"),
         )
@@ -257,4 +264,155 @@ fn admitted_route_with_an_unbounded_plan_reports_a_plan_denial_instead_of_runnin
     assert!(outcome.execution_trace.is_none());
     assert!(outcome.plan_denial.is_some());
     assert!(outcome.forensic_records.is_empty());
+}
+
+#[test]
+fn per_step_dispatch_mode_dispatches_each_declared_step_and_completes() {
+    let request = support::load_fixture_json("valid", "execution-request-basic.json");
+    let requester_trust = support::load_fixture_json("valid", "requester-trust-basic.json");
+    let policy = support::load_fixture_json("valid", "policy-artifact-basic.json");
+    let capability_registry = support::load_fixture_json("valid", "capability-registry-basic.json");
+    let plan = support::load_fixture_json("valid", "execution-plan-basic.json");
+
+    let delivery_root = temp_dir("per-step-delivery-root");
+
+    let outcome = ExecutionPipelineService
+        .run(
+            ExecutionPipelineInputs {
+                request: &request,
+                requester_trust: &requester_trust,
+                policy: &policy,
+                capability_registry: &capability_registry,
+                execution_plan: Some(&plan),
+            },
+            Some(AdapterSelection::LocalFileWrite {
+                delivery_root: delivery_root.clone(),
+            }),
+            DispatchMode::PerStep,
+            None,
+            decision_context("77777777-7777-4777-8777-77777777777a"),
+        )
+        .unwrap();
+
+    let trace = outcome.execution_trace.unwrap();
+    assert_eq!(trace.final_status().status.state, ExecutionState::Completed);
+
+    let in_progress_steps: Vec<_> = trace
+        .statuses
+        .iter()
+        .filter(|status| status.status.state == ExecutionState::InProgress)
+        .map(|status| status.status.current_step.clone().unwrap())
+        .collect();
+    assert_eq!(
+        in_progress_steps,
+        vec![
+            "step_export_prepare".to_owned(),
+            "step_export_commit".to_owned()
+        ]
+    );
+
+    fs::remove_dir_all(&delivery_root).ok();
+}
+
+fn plan_json_with_computed_hash(
+    steps_and_capabilities: &[(&str, &str)],
+    referenced_capabilities: &[&str],
+) -> serde_json::Value {
+    let steps: Vec<_> = steps_and_capabilities
+        .iter()
+        .map(|(step_id, capability_id)| {
+            serde_json::json!({
+                "step_id": step_id,
+                "capability_id": capability_id,
+                "declared_side_effect_class": "local_file_write",
+                "timeout_budget_ms": 400
+            })
+        })
+        .collect();
+
+    let mut plan_json = serde_json::json!({
+        "execution_plan_id": Uuid::new_v4().to_string(),
+        "correlation_id": "66666666-6666-4666-8666-666666666666",
+        "originating_request_id": "55555555-5555-4555-8555-555555555555",
+        "steps": steps,
+        "referenced_capabilities": referenced_capabilities,
+        "declared_max_step_count": 4,
+        "declared_side_effect_classes": ["local_file_write"],
+        "fallback_references": [],
+        "cancellation_policy": "cancel_remaining_steps",
+        "completion_policy": "all_steps_must_succeed",
+        "max_duration_budget_ms": 2000,
+        "stable_plan_hash": "a".repeat(64),
+        "planned_at_utc": "2030-01-01T00:10:00Z"
+    });
+
+    let typed_plan = ExecutionPlan::load_contract_value(&plan_json).unwrap();
+    plan_json["stable_plan_hash"] = serde_json::json!(
+        ExecutionPlanValidator::compute_stable_plan_hash(&typed_plan)
+    );
+    plan_json
+}
+
+#[test]
+fn per_step_dispatch_mode_reports_partial_success_for_a_step_with_no_adapter() {
+    let request = support::load_fixture_json("valid", "execution-request-basic.json");
+    let requester_trust = support::load_fixture_json("valid", "requester-trust-basic.json");
+    let policy = support::load_fixture_json("valid", "policy-artifact-basic.json");
+
+    let second_capability_id = "88888888-8888-4888-8888-888888888888";
+    let mut capability_registry =
+        support::load_fixture_json("valid", "capability-registry-basic.json");
+    let mut second_capability = capability_registry["capabilities"][0].clone();
+    second_capability["capability_id"] = serde_json::json!(second_capability_id);
+    capability_registry["capabilities"]
+        .as_array_mut()
+        .unwrap()
+        .push(second_capability);
+
+    let plan = plan_json_with_computed_hash(
+        &[
+            ("step_a", "44444444-4444-4444-8444-444444444444"),
+            ("step_b", second_capability_id),
+        ],
+        &["44444444-4444-4444-8444-444444444444", second_capability_id],
+    );
+
+    let delivery_root = temp_dir("per-step-partial-delivery-root");
+
+    let outcome = ExecutionPipelineService
+        .run(
+            ExecutionPipelineInputs {
+                request: &request,
+                requester_trust: &requester_trust,
+                policy: &policy,
+                capability_registry: &capability_registry,
+                execution_plan: Some(&plan),
+            },
+            // Registers an adapter only for the route's own capability
+            // (44444444...); step_b's capability (88888888...) has none.
+            Some(AdapterSelection::LocalFileWrite {
+                delivery_root: delivery_root.clone(),
+            }),
+            DispatchMode::PerStep,
+            None,
+            decision_context("77777777-7777-4777-8777-77777777777b"),
+        )
+        .unwrap();
+
+    let trace = outcome.execution_trace.unwrap();
+    let final_status = &trace.final_status().status;
+    assert_eq!(final_status.state, ExecutionState::PartialSuccess);
+    assert_eq!(
+        final_status.degraded_subtype,
+        Some(DegradedSubtype::DegradedPartial)
+    );
+    assert!(
+        final_status
+            .failure_summary
+            .as_deref()
+            .unwrap()
+            .contains("step_b")
+    );
+
+    fs::remove_dir_all(&delivery_root).ok();
 }

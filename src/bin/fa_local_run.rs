@@ -275,6 +275,12 @@ fn main() {
                     None => None,
                 };
 
+            let dispatch_mode = if args.iter().any(|arg| arg == "--per-step-dispatch") {
+                fa_local::app::execution_pipeline_service::DispatchMode::PerStep
+            } else {
+                fa_local::app::execution_pipeline_service::DispatchMode::WholeRoute
+            };
+
             match ExecutionPipelineService.run(
                 ExecutionPipelineInputs {
                     request: &request,
@@ -284,6 +290,7 @@ fn main() {
                     execution_plan: plan.as_ref(),
                 },
                 adapter_selection,
+                dispatch_mode,
                 forensic_export_adapter,
                 RouteResolutionContext::default(),
             ) {
@@ -503,6 +510,9 @@ fn main() {
             );
             eprintln!(
                 "  --forensic-sqlite <FILE>         Record every forensic event into a queryable SQLite store (mutually exclusive with --forensic-export)"
+            );
+            eprintln!(
+                "  --per-step-dispatch              Dispatch each declared plan step to its own capability-scoped adapter, one call per step, instead of one call for the whole plan"
             );
             eprintln!("");
             eprintln!("OPTIONS FOR forensics-query:");
