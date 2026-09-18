@@ -108,17 +108,6 @@ impl ExecutionStatus {
             }
         }
 
-        if mentions_fallback(self.completion_summary.as_deref())
-            || mentions_fallback(self.failure_summary.as_deref())
-            || mentions_fallback(Some(&self.truthful_user_visible_summary))
-        {
-            if !is_explicit_fallback_subtype(self.degraded_subtype) {
-                return Err(contract_invalid(
-                    "execution status cannot mention fallback without an explicit fallback degraded_subtype",
-                ));
-            }
-        }
-
         match self.state {
             ExecutionState::Denied => {
                 require_posture(
@@ -621,19 +610,4 @@ fn is_valid_step_id(value: &str) -> bool {
     bytes.all(|byte| {
         byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'_' | b'-')
     })
-}
-
-fn mentions_fallback(value: Option<&str>) -> bool {
-    value
-        .map(|text| text.to_ascii_lowercase().contains("fallback"))
-        .unwrap_or(false)
-}
-
-fn is_explicit_fallback_subtype(degraded_subtype: Option<DegradedSubtype>) -> bool {
-    matches!(
-        degraded_subtype,
-        Some(
-            DegradedSubtype::DegradedFallbackEquivalent | DegradedSubtype::DegradedFallbackLimited
-        )
-    )
 }

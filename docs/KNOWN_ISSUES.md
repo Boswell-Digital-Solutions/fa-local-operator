@@ -74,3 +74,64 @@ self-scoped as deferring to `doc/system`/`doc/FLOSYSTEM.md` on conflict rather t
 current implementation state themselves, so they were not making false claims. `docs/README.md`
 stub directories (`architecture/`, `contracts/`, `controls/`, `doctrine/`, `risks/`) are empty
 placeholders, not stale claims, and were left alone.
+
+---
+
+## KI-FLO-20260918-003 — `mentions_fallback()` false-positives on any step id or adapter text that happens to contain "fallback"
+
+**Date found:** 2026-09-18
+**Status:** closed (fixed same session)
+
+**What is wrong:** `ExecutionStatus::validate()` (`src/domain/status/mod.rs:111-120`), and the
+matching guards in `ValidatedForensicEvent` (`src/domain/forensics/mod.rs:126`) and
+`ValidatedFrictionPayload` (`src/domain/friction/mod.rs:130`), reject any status/event/payload
+whose `completion_summary`, `failure_summary`, or `truthful_user_visible_summary` contains the
+case-insensitive substring `"fallback"` unless `degraded_subtype` is explicitly
+`DegradedFallbackEquivalent`/`DegradedFallbackLimited`. Found live-testing `fa-local-run execute
+--per-step-dispatch` (PRs #14/#15) with a plan step named `step_export_fallback`: the in-progress
+status's message (`"executing externally delivered step step_export_fallback"`,
+`build_in_progress_statuses_from_route` in `src/app/execution_service.rs`) embeds the step id
+verbatim, has no `degraded_subtype` at all (in-progress statuses never set one), and the run
+hard-errored with `contract invalid: execution status cannot mention fallback without an explicit
+fallback degraded_subtype` instead of returning a normal execution trace.
+
+**Root cause:** `mentions_fallback()` (`src/domain/status/mod.rs:626-630`) is a blunt
+case-insensitive substring scan over free-text fields that legitimately embed untrusted,
+operator/plan-author-controlled text: a step id (`is_valid_step_id`, same file, only checks
+length 1-48 and charset — nothing stops the substring "fallback" appearing in an otherwise
+ordinary step name) via `format!("executing externally delivered step {step_id}")` and
+`format!("executing declared step {step_id}")`, and an adapter's own `failure_summary`
+(`AdapterDeliveryResult::FailedAtDeclaredStep`, validated only for length 1-160 chars, not
+content). The guard's real intent — catching a caller that *claims* a fallback outcome in text
+without tagging the matching `degraded_subtype` — cannot distinguish that from a step or adapter
+message that merely contains the word for unrelated reasons. This is independent of the new
+per-step fallback coordination shipped in PR #15: it predates that change and would trip on the
+*pre-existing* per-step in-progress path just as easily for any step named e.g.
+`build_fallback_ui`, fallback coordination or not.
+
+**Fix:** Removed `mentions_fallback()` and its guard entirely from all three modules
+(`src/domain/status/mod.rs`, `src/domain/forensics/mod.rs`, `src/domain/friction/mod.rs`), rather
+than narrowing its text scan. Investigation showed the guard was fully redundant with an
+already-existing *structural* invariant in the same `validate()` functions: `ExecutionState::
+CompletedWithConstraints` already hard-requires `degraded_subtype` to be
+`DegradedFallbackEquivalent`/`DegradedFallbackLimited` (`src/domain/status/mod.rs:370-378`,
+mirrored in the forensic and friction `validate_degraded_subtype` helpers) — the *only* state
+where a genuine "completed via fallback" claim is ever legitimate. For every other state, the
+text-scan added no real protection (nothing else ever legitimately claims a fallback completion)
+while being actively harmful: for `ExecutionState::PartialSuccess`, `degraded_subtype` is
+structurally required to be exactly `DegradedPartial` — so any `failure_summary` that happened to
+mention "fallback" (plausible from an adapter's own text) would have created an unsatisfiable
+conflict between that requirement and the removed guard's, hard-failing every such run with no
+possible valid status to construct. `is_explicit_fallback_subtype()` was kept where the structural
+checks still use it (forensics, friction); removed as dead code where it was only reachable from
+the deleted guard (status). Repurposed the three tests that exercised the old guard
+(`tests/execution_status_invariants.rs`, `tests/forensic_event_invariants.rs`;
+`tests/friction_payload_invariants.rs`'s equivalent test already exercised the *structural* check,
+not the guard, so it needed no change) into regression guards asserting the opposite: mentioning
+"fallback" in text alone must not fail validation. Re-ran the exact originally-failing scenario
+(same plan, same `step_export_fallback` step name, same hash) against the fixed binary and
+confirmed it now completes normally (`exit=0`) instead of hard-erroring.
+
+**Scope:** closed. Changed `src/domain/status/mod.rs`, `src/domain/forensics/mod.rs`,
+`src/domain/friction/mod.rs`, `tests/execution_status_invariants.rs`, and
+`tests/forensic_event_invariants.rs`.
