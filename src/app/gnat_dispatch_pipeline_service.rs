@@ -14,25 +14,28 @@
 //! FA Local's own execution-request forensic contract having no equivalent
 //! of a Cortex-initiated run to record it as.
 //!
-//! Recording is currently in-memory only: [`GnatDispatchRunResult::forensic_events`]
-//! is returned for the caller to inspect or persist, the same way
-//! `execute`'s forensic records existed before this repo's JSONL/SQLite
-//! export sinks did. Wiring a matching export sink for this event family
-//! is a disclosed, separate concern, not something this pipeline does.
+//! Recording is exported through an optional [`GnatForensicEventExportAdapter`]
+//! the same way [`crate::app::execution_pipeline_service::ExecutionPipelineService`]
+//! exports its own forensic records: every event is still returned in
+//! [`GnatDispatchRunResult::forensic_events`] regardless, and additionally
+//! carries an `export_reference` when a sink was supplied. A caller that
+//! passes `None` gets the original in-memory-only behavior.
 
 use std::collections::HashMap;
 
 use serde_json::Value;
 
+use crate::app::forensic_service::map_export_result;
 use crate::domain::guards::DenialGuard;
 use crate::domain::shared::{ForensicEventId, TimestampUtc};
 use crate::errors::{FaLocalError, FaLocalResult};
 use crate::integrations::cortex::{
     GnatDispatchAdmission, GnatDispatchAdmissionState, GnatDispatchEnvelope,
     GnatDispatchForensicEvent, GnatDispatchValidator, GnatFaLocalCapabilityState,
-    GnatForensicEventType, GnatForensicRedactionLevel, GnatNegotiationOutcome, GnatReceiptState,
-    GnatShardDeliveryAdapter, GnatShardDispatchRequest, GnatShardDispatchResult,
-    GnatShardEnrichment, GnatShardOutcome, ValidatedGnatDispatchForensicEvent,
+    GnatForensicEventExportAdapter, GnatForensicEventType, GnatForensicRedactionLevel,
+    GnatNegotiationOutcome, GnatReceiptState, GnatShardDeliveryAdapter, GnatShardDispatchRequest,
+    GnatShardDispatchResult, GnatShardEnrichment, GnatShardOutcome,
+    ValidatedGnatDispatchForensicEvent,
 };
 
 /// The full result of one Gnat dispatch run.
@@ -55,6 +58,15 @@ pub enum GnatDispatchRunOutcome {
     },
 }
 
+/// One recorded [`GnatDispatchForensicEvent`], plus where it landed: `None`
+/// when no export adapter was supplied (in-memory only, the original
+/// behavior), `Some(export_reference)` when it was exported.
+#[derive(Debug)]
+pub struct GnatForensicRecordOutcome {
+    pub event: ValidatedGnatDispatchForensicEvent,
+    pub export_reference: Option<String>,
+}
+
 /// [`GnatDispatchRunOutcome`] plus the truthful forensic trail recorded
 /// along the way: exactly one negotiation event, and (only for a
 /// [`GnatDispatchRunOutcome::Dispatched`] run) one event per declared
@@ -62,7 +74,7 @@ pub enum GnatDispatchRunOutcome {
 #[derive(Debug)]
 pub struct GnatDispatchRunResult {
     pub outcome: GnatDispatchRunOutcome,
-    pub forensic_events: Vec<ValidatedGnatDispatchForensicEvent>,
+    pub forensic_events: Vec<GnatForensicRecordOutcome>,
 }
 
 #[derive(Debug, Default)]
@@ -75,6 +87,7 @@ impl GnatDispatchPipelineService {
         fa_local_capabilities: &GnatFaLocalCapabilityState,
         shard_enrichments: &HashMap<String, GnatShardEnrichment>,
         adapter: &dyn GnatShardDeliveryAdapter,
+        forensic_export_adapter: Option<&dyn GnatForensicEventExportAdapter>,
         now: TimestampUtc,
     ) -> FaLocalResult<GnatDispatchRunResult> {
         let shard_requests = build_shard_requests(envelope, shard_enrichments)?;
@@ -83,11 +96,14 @@ impl GnatDispatchPipelineService {
         let admission = match GnatDispatchValidator::negotiate(envelope, fa_local_capabilities) {
             Ok(admission) => admission,
             Err(denial) => {
-                forensic_events.push(build_negotiation_event(
-                    envelope,
-                    GnatNegotiationOutcome::Denied,
-                    denial.summary.clone(),
-                    now,
+                forensic_events.push(record_forensic_event(
+                    build_negotiation_event(
+                        envelope,
+                        GnatNegotiationOutcome::Denied,
+                        denial.summary.clone(),
+                        now,
+                    )?,
+                    forensic_export_adapter,
                 )?);
                 return Ok(GnatDispatchRunResult {
                     outcome: GnatDispatchRunOutcome::Denied(denial),
@@ -98,11 +114,14 @@ impl GnatDispatchPipelineService {
 
         match admission.state {
             GnatDispatchAdmissionState::SerialFallbackPermitted => {
-                forensic_events.push(build_negotiation_event(
-                    envelope,
-                    GnatNegotiationOutcome::SerialFallbackPermitted,
-                    admission.operator_visible_summary.clone(),
-                    now,
+                forensic_events.push(record_forensic_event(
+                    build_negotiation_event(
+                        envelope,
+                        GnatNegotiationOutcome::SerialFallbackPermitted,
+                        admission.operator_visible_summary.clone(),
+                        now,
+                    )?,
+                    forensic_export_adapter,
                 )?);
                 Ok(GnatDispatchRunResult {
                     outcome: GnatDispatchRunOutcome::SerialFallbackPermitted(admission),
@@ -110,17 +129,23 @@ impl GnatDispatchPipelineService {
                 })
             }
             GnatDispatchAdmissionState::ReadyForFaLocalDispatch => {
-                forensic_events.push(build_negotiation_event(
-                    envelope,
-                    GnatNegotiationOutcome::ReadyForFaLocalDispatch,
-                    admission.operator_visible_summary.clone(),
-                    now,
+                forensic_events.push(record_forensic_event(
+                    build_negotiation_event(
+                        envelope,
+                        GnatNegotiationOutcome::ReadyForFaLocalDispatch,
+                        admission.operator_visible_summary.clone(),
+                        now,
+                    )?,
+                    forensic_export_adapter,
                 )?);
 
                 let mut shard_results = Vec::with_capacity(shard_requests.len());
                 for request in &shard_requests {
                     let result = adapter.deliver_shard(request);
-                    forensic_events.push(build_shard_event(envelope, request, &result, now)?);
+                    forensic_events.push(record_forensic_event(
+                        build_shard_event(envelope, request, &result, now)?,
+                        forensic_export_adapter,
+                    )?);
                     shard_results.push((request.shard_id.clone(), result));
                 }
 
@@ -133,6 +158,25 @@ impl GnatDispatchPipelineService {
                 })
             }
         }
+    }
+}
+
+fn record_forensic_event(
+    event: ValidatedGnatDispatchForensicEvent,
+    export_adapter: Option<&dyn GnatForensicEventExportAdapter>,
+) -> FaLocalResult<GnatForensicRecordOutcome> {
+    match export_adapter {
+        Some(adapter) => {
+            let receipt = map_export_result(adapter.adapter_id(), adapter.export_event(&event))?;
+            Ok(GnatForensicRecordOutcome {
+                event,
+                export_reference: Some(receipt.export_reference),
+            })
+        }
+        None => Ok(GnatForensicRecordOutcome {
+            event,
+            export_reference: None,
+        }),
     }
 }
 

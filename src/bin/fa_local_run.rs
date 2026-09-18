@@ -70,6 +70,11 @@ enum ForensicSink {
     Sqlite(SqliteForensicStore),
 }
 
+enum GnatForensicSink {
+    Jsonl(fa_local::integrations::cortex::JsonlGnatForensicExportAdapter),
+    Sqlite(fa_local::integrations::cortex::SqliteGnatForensicStore),
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
@@ -451,6 +456,41 @@ fn main() {
             });
             let cortex_python = flag_path("--cortex-python").unwrap_or("python3");
 
+            let gnat_forensic_export_path = flag_path("--forensic-export");
+            let gnat_forensic_sqlite_path = flag_path("--forensic-sqlite");
+            let gnat_forensic_sink = match (gnat_forensic_export_path, gnat_forensic_sqlite_path) {
+                (Some(_), Some(_)) => {
+                    eprintln!(
+                        "error: --forensic-export and --forensic-sqlite are mutually exclusive"
+                    );
+                    process::exit(1);
+                }
+                (Some(path), None) => Some(GnatForensicSink::Jsonl(
+                    fa_local::integrations::cortex::JsonlGnatForensicExportAdapter::new(
+                        fa_local::integrations::cortex::JsonlGnatForensicExportAdapterConfig::new(
+                            path.into(),
+                        ),
+                    ),
+                )),
+                (None, Some(path)) => Some(GnatForensicSink::Sqlite(
+                    fa_local::integrations::cortex::SqliteGnatForensicStore::open(
+                        std::path::Path::new(path),
+                    )
+                    .unwrap_or_else(|e| {
+                        eprintln!("error: could not open gnat forensic sqlite store {path:?}: {e}");
+                        process::exit(1);
+                    }),
+                )),
+                (None, None) => None,
+            };
+            let gnat_forensic_export_adapter: Option<
+                &dyn fa_local::integrations::cortex::GnatForensicEventExportAdapter,
+            > = match &gnat_forensic_sink {
+                Some(GnatForensicSink::Jsonl(adapter)) => Some(adapter),
+                Some(GnatForensicSink::Sqlite(store)) => Some(store),
+                None => None,
+            };
+
             let envelope_value = read_json_file(envelope_path);
             let envelope =
                 fa_local::integrations::cortex::GnatDispatchEnvelope::load_contract_value(
@@ -487,6 +527,7 @@ fn main() {
                 &capabilities,
                 &shard_enrichments,
                 &adapter,
+                gnat_forensic_export_adapter,
                 fa_local::domain::shared::now_utc(),
             ) {
                 Ok(result) => {
@@ -627,7 +668,9 @@ fn main() {
             );
             eprintln!("  (exactly one of --correlation-id or --event-type is required)");
             eprintln!("");
-            eprintln!("OPTIONS FOR gnat-dispatch (all required except --cortex-python):");
+            eprintln!(
+                "OPTIONS FOR gnat-dispatch (--envelope, --shard-enrichment, and --cortex-repo-root required; the rest optional):"
+            );
             eprintln!(
                 "  --envelope <FILE>            A GnatDispatchEnvelope.v1 JSON file (Cortex-constructed)"
             );
@@ -651,6 +694,12 @@ fn main() {
             );
             eprintln!(
                 "  --cortex-python <BINARY>     Python interpreter to spawn Cortex's CLI with (default: python3)"
+            );
+            eprintln!(
+                "  --forensic-export <FILE>     Also append every recorded forensic event to this JSONL file (mutually exclusive with --forensic-sqlite)"
+            );
+            eprintln!(
+                "  --forensic-sqlite <FILE>     Also record every forensic event into a queryable SQLite store (mutually exclusive with --forensic-export)"
             );
             eprintln!("");
             eprintln!("EXIT CODES:");
@@ -705,7 +754,12 @@ fn gnat_dispatch_result_to_json(
     let forensic_events_json: Vec<Value> = result
         .forensic_events
         .iter()
-        .map(|validated| serde_json::to_value(&validated.event).expect("event serializes"))
+        .map(|record| {
+            serde_json::json!({
+                "event": record.event.event,
+                "export_reference": record.export_reference,
+            })
+        })
         .collect();
 
     let (mut output, exit_code) = match result.outcome {

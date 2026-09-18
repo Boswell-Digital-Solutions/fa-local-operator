@@ -30,6 +30,14 @@ Delivered since the list below was last trimmed:
   `src/integrations/df_local/mod.rs` — DataForge Local's Phase X4). `domain::service_status`'s
   `writeback_wired` fact now reads `true`, and the FC-LTA-P007 canonical status projection reports
   `state: "ready"` accordingly.
+- JSONL/SQLite export sinks for `GnatDispatchForensicEvent`
+  (`src/integrations/cortex/forensic_export.rs`, `JsonlGnatForensicExportAdapter`/
+  `SqliteGnatForensicStore`), mirroring `execute`'s own sinks for a separate contract.
+  `GnatDispatchPipelineService::run` takes an optional export adapter; a failed export fails the
+  whole run closed, reusing the same validation `execute`'s own forensic records already use
+  rather than duplicating it. Exposed as `fa-local-run gnat-dispatch --forensic-export <FILE>|
+  --forensic-sqlite <FILE>`. Live-verified end to end against the real COR checkout: both sinks
+  independently produced 3 real records from the same dispatch run.
 
 Not yet delivered, in no particular priority order:
 
@@ -60,10 +68,8 @@ Not yet delivered, in no particular priority order:
    independently schema-valid forensic events (exit 0); deliberately stale digests report
    `stale` through the same real subprocess calls (exit 1); an unrealistically tight deadline on
    one shard against the real COR checkout is killed promptly while a sibling shard in the same
-   run still completes. Still open, disclosed rather than silently assumed away: no export sink
-   (JSONL/SQLite) for Gnat dispatch forensic events yet — recording is in-memory only, returned
-   to the caller. NeuronForge-Local integration remains unstarted; DF-Local's execution-bridge
-   writeback is delivered (above).
+   run still completes. NeuronForge-Local integration remains unstarted; DF-Local's
+   execution-bridge writeback is delivered (above).
 2. A daemon or networked API surface (FA Local stays a CLI binary with no HTTP surface by
    doctrine; this would need an explicit, separately-authorized architectural decision).
 3. A persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state

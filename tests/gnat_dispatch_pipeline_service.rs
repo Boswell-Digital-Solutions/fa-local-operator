@@ -1,11 +1,14 @@
 mod support;
 
 use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use chrono::{TimeZone, Utc};
 use serde_json::json;
+use uuid::Uuid;
 
 use fa_local::app::gnat_dispatch_pipeline_service::{
     GnatDispatchPipelineService, GnatDispatchRunOutcome,
@@ -14,6 +17,7 @@ use fa_local::integrations::cortex::{
     GnatDispatchAdmissionState, GnatDispatchEnvelope, GnatFaLocalCapabilityState,
     GnatForensicEventType, GnatNegotiationOutcome, GnatReceiptState, GnatShardDeliveryAdapter,
     GnatShardDispatchRequest, GnatShardDispatchResult, GnatShardEnrichment, GnatShardOutcome,
+    JsonlGnatForensicExportAdapter, JsonlGnatForensicExportAdapterConfig,
 };
 
 fn ts() -> chrono::DateTime<Utc> {
@@ -82,7 +86,14 @@ fn a_ready_run_dispatches_every_declared_shard() {
     let adapter = StubGnatShardAdapter::default();
 
     let result = GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
+        .run(
+            &envelope,
+            &capabilities,
+            &shard_enrichments,
+            &adapter,
+            None,
+            ts(),
+        )
         .unwrap();
 
     match result.outcome {
@@ -112,12 +123,19 @@ fn a_dispatched_run_records_one_negotiation_event_and_one_event_per_shard() {
     let adapter = StubGnatShardAdapter::default();
 
     let result = GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
+        .run(
+            &envelope,
+            &capabilities,
+            &shard_enrichments,
+            &adapter,
+            None,
+            ts(),
+        )
         .unwrap();
 
     assert_eq!(result.forensic_events.len(), 3);
 
-    let negotiation = &result.forensic_events[0].event;
+    let negotiation = &result.forensic_events[0].event.event;
     assert_eq!(
         negotiation.event_type,
         GnatForensicEventType::GnatDispatchNegotiated
@@ -129,7 +147,7 @@ fn a_dispatched_run_records_one_negotiation_event_and_one_event_per_shard() {
     assert!(negotiation.shard_id.is_none());
 
     for shard_event in &result.forensic_events[1..] {
-        let event = &shard_event.event;
+        let event = &shard_event.event.event;
         assert_eq!(event.event_type, GnatForensicEventType::GnatShardDispatched);
         assert_eq!(event.shard_outcome, Some(GnatShardOutcome::Completed));
         assert_eq!(event.receipt_state, Some(GnatReceiptState::Complete));
@@ -145,7 +163,14 @@ fn the_bridge_merges_declared_envelope_fields_with_enrichment_fields() {
     let adapter = StubGnatShardAdapter::default();
 
     GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
+        .run(
+            &envelope,
+            &capabilities,
+            &shard_enrichments,
+            &adapter,
+            None,
+            ts(),
+        )
         .unwrap();
 
     let received = adapter.received.lock().unwrap();
@@ -188,7 +213,14 @@ fn an_unavailable_run_with_serial_fallback_never_dispatches() {
     let adapter = StubGnatShardAdapter::default();
 
     let result = GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
+        .run(
+            &envelope,
+            &capabilities,
+            &shard_enrichments,
+            &adapter,
+            None,
+            ts(),
+        )
         .unwrap();
 
     assert!(matches!(
@@ -201,7 +233,7 @@ fn an_unavailable_run_with_serial_fallback_never_dispatches() {
     // this case, not this pipeline's.
     assert_eq!(result.forensic_events.len(), 1);
     assert_eq!(
-        result.forensic_events[0].event.negotiation_outcome,
+        result.forensic_events[0].event.event.negotiation_outcome,
         GnatNegotiationOutcome::SerialFallbackPermitted
     );
 }
@@ -215,7 +247,14 @@ fn a_denied_run_never_dispatches() {
     let adapter = StubGnatShardAdapter::default();
 
     let result = GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
+        .run(
+            &envelope,
+            &capabilities,
+            &shard_enrichments,
+            &adapter,
+            None,
+            ts(),
+        )
         .unwrap();
 
     assert!(matches!(result.outcome, GnatDispatchRunOutcome::Denied(_)));
@@ -223,7 +262,7 @@ fn a_denied_run_never_dispatches() {
 
     assert_eq!(result.forensic_events.len(), 1);
     assert_eq!(
-        result.forensic_events[0].event.negotiation_outcome,
+        result.forensic_events[0].event.event.negotiation_outcome,
         GnatNegotiationOutcome::Denied
     );
 }
@@ -237,7 +276,14 @@ fn a_declared_shard_with_no_enrichment_supplied_is_rejected_before_negotiation()
     let adapter = StubGnatShardAdapter::default();
 
     let error = GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
+        .run(
+            &envelope,
+            &capabilities,
+            &shard_enrichments,
+            &adapter,
+            None,
+            ts(),
+        )
         .unwrap_err();
 
     assert!(error.to_string().contains("no shard enrichment supplied"));
@@ -264,7 +310,14 @@ fn an_enrichment_for_an_undeclared_shard_is_simply_ignored() {
     let adapter = StubGnatShardAdapter::default();
 
     let result = GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
+        .run(
+            &envelope,
+            &capabilities,
+            &shard_enrichments,
+            &adapter,
+            None,
+            ts(),
+        )
         .unwrap();
 
     assert!(matches!(
@@ -299,11 +352,18 @@ fn a_not_completed_shard_records_its_real_receipt_state() {
     let adapter = NotCompletedGnatShardAdapter;
 
     let result = GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
+        .run(
+            &envelope,
+            &capabilities,
+            &shard_enrichments,
+            &adapter,
+            None,
+            ts(),
+        )
         .unwrap();
 
     for shard_event in &result.forensic_events[1..] {
-        let event = &shard_event.event;
+        let event = &shard_event.event.event;
         assert_eq!(event.shard_outcome, Some(GnatShardOutcome::NotCompleted));
         assert_eq!(event.receipt_state, Some(GnatReceiptState::Stale));
     }
@@ -332,15 +392,101 @@ fn a_dispatch_unavailable_shard_records_no_receipt_state() {
     let adapter = UnavailableGnatShardAdapter;
 
     let result = GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
+        .run(
+            &envelope,
+            &capabilities,
+            &shard_enrichments,
+            &adapter,
+            None,
+            ts(),
+        )
         .unwrap();
 
     for shard_event in &result.forensic_events[1..] {
-        let event = &shard_event.event;
+        let event = &shard_event.event.event;
         assert_eq!(
             event.shard_outcome,
             Some(GnatShardOutcome::DispatchUnavailable)
         );
         assert_eq!(event.receipt_state, None);
     }
+}
+
+fn temp_jsonl_path() -> PathBuf {
+    std::env::temp_dir().join(format!(
+        "fa-local-gnat-dispatch-pipeline-export-{}.jsonl",
+        Uuid::new_v4()
+    ))
+}
+
+#[test]
+fn a_supplied_export_adapter_exports_every_recorded_event_and_populates_export_reference() {
+    let envelope = load_basic_envelope();
+    let capabilities = GnatFaLocalCapabilityState::ready_default();
+    let shard_enrichments = basic_enrichments();
+    let adapter = StubGnatShardAdapter::default();
+    let export_path = temp_jsonl_path();
+    let export_adapter = JsonlGnatForensicExportAdapter::new(
+        JsonlGnatForensicExportAdapterConfig::new(export_path.clone()),
+    );
+
+    let result = GnatDispatchPipelineService
+        .run(
+            &envelope,
+            &capabilities,
+            &shard_enrichments,
+            &adapter,
+            Some(&export_adapter),
+            ts(),
+        )
+        .unwrap();
+
+    assert_eq!(result.forensic_events.len(), 3);
+    for record in &result.forensic_events {
+        assert_eq!(
+            record.export_reference.as_deref(),
+            Some(record.event.event.forensic_event_id.to_string().as_str())
+        );
+    }
+
+    let exported_lines = fs::read_to_string(&export_path).unwrap().lines().count();
+    assert_eq!(exported_lines, 3);
+
+    fs::remove_file(&export_path).ok();
+}
+
+#[test]
+fn a_run_fails_closed_when_the_export_sink_is_unavailable() {
+    let envelope = load_basic_envelope();
+    let capabilities = GnatFaLocalCapabilityState::ready_default();
+    let shard_enrichments = basic_enrichments();
+    let adapter = StubGnatShardAdapter::default();
+    let missing_dir_path = std::env::temp_dir()
+        .join(format!(
+            "fa-local-gnat-dispatch-pipeline-export-missing-{}",
+            Uuid::new_v4()
+        ))
+        .join("events.jsonl");
+    let export_adapter = JsonlGnatForensicExportAdapter::new(
+        JsonlGnatForensicExportAdapterConfig::new(missing_dir_path),
+    );
+
+    let error = GnatDispatchPipelineService
+        .run(
+            &envelope,
+            &capabilities,
+            &shard_enrichments,
+            &adapter,
+            Some(&export_adapter),
+            ts(),
+        )
+        .unwrap_err();
+
+    assert!(
+        error
+            .to_string()
+            .contains("forensic export dependency unavailable")
+    );
+    // Fails closed on the very first event (negotiation) before any shard is dispatched.
+    assert_eq!(adapter.calls.load(Ordering::SeqCst), 0);
 }

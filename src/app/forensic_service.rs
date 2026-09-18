@@ -340,7 +340,7 @@ fn validate_record_kind(kind: &ForensicRecordKind) -> FaLocalResult<()> {
     }
 }
 
-fn map_export_result(
+pub(crate) fn map_export_result(
     adapter_id: &str,
     export_result: ForensicExportResult,
 ) -> FaLocalResult<ForensicExportReceipt> {
