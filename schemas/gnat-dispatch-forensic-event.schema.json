@@ -1,0 +1,250 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FA Local Gnat Dispatch Forensic Event",
+  "description": "Minimal, bounded, auditable forensic event contract for FA Local's Cortex Gnat dispatch truth -- a separate contract from forensic-event.schema.json because a Cortex-initiated Gnat run has no route_decision_id, execution_plan_id, or ApprovalPosture/ExecutionState of its own.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "forensic_event_id",
+    "correlation_id",
+    "run_id",
+    "event_type",
+    "negotiation_outcome",
+    "shard_id",
+    "worker_type",
+    "shard_outcome",
+    "receipt_state",
+    "timestamp_utc",
+    "summary",
+    "redaction_level",
+    "payload_minimized"
+  ],
+  "properties": {
+    "forensic_event_id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "correlation_id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "event_type": {
+      "$ref": "#/$defs/event_type"
+    },
+    "negotiation_outcome": {
+      "$ref": "#/$defs/negotiation_outcome"
+    },
+    "shard_id": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
+      ]
+    },
+    "worker_type": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/worker_type"
+        }
+      ]
+    },
+    "shard_outcome": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/shard_outcome"
+        }
+      ]
+    },
+    "receipt_state": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/receipt_state"
+        }
+      ]
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "redaction_level": {
+      "$ref": "#/$defs/redaction_level"
+    },
+    "payload_minimized": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "gnat_dispatch_negotiated",
+        "gnat_shard_dispatched"
+      ]
+    },
+    "negotiation_outcome": {
+      "type": "string",
+      "enum": [
+        "denied",
+        "serial_fallback_permitted",
+        "ready_for_fa_local_dispatch"
+      ]
+    },
+    "worker_type": {
+      "type": "string",
+      "enum": [
+        "markdown_syntax",
+        "plain_text_syntax",
+        "pdf_text_syntax",
+        "docx_text_syntax",
+        "rtf_text_syntax",
+        "odt_text_syntax",
+        "epub_text_syntax"
+      ]
+    },
+    "shard_outcome": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "not_completed",
+        "dispatch_unavailable"
+      ]
+    },
+    "receipt_state": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "denied",
+        "stale",
+        "failed"
+      ]
+    },
+    "redaction_level": {
+      "type": "string",
+      "enum": [
+        "none",
+        "sensitive_fields_redacted",
+        "linkage_only"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "gnat_dispatch_negotiated"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "shard_id": {
+            "const": null
+          },
+          "worker_type": {
+            "const": null
+          },
+          "shard_outcome": {
+            "const": null
+          },
+          "receipt_state": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "gnat_shard_dispatched"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "negotiation_outcome": {
+            "const": "ready_for_fa_local_dispatch"
+          },
+          "shard_id": {
+            "type": "string"
+          },
+          "worker_type": {
+            "$ref": "#/$defs/worker_type"
+          },
+          "shard_outcome": {
+            "$ref": "#/$defs/shard_outcome"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "shard_outcome": {
+            "const": "dispatch_unavailable"
+          }
+        },
+        "required": [
+          "shard_outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "receipt_state": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "shard_outcome": {
+            "enum": [
+              "completed",
+              "not_completed"
+            ]
+          }
+        },
+        "required": [
+          "shard_outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "receipt_state": {
+            "$ref": "#/$defs/receipt_state"
+          }
+        }
+      }
+    }
+  ]
+}

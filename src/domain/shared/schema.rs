@@ -20,10 +20,11 @@ pub enum SchemaName {
     RouteDecision,
     DenialGuard,
     GnatDispatchEnvelope,
+    GnatDispatchForensicEvent,
 }
 
 impl SchemaName {
-    pub const ALL: [SchemaName; 12] = [
+    pub const ALL: [SchemaName; 13] = [
         SchemaName::RequesterTrust,
         SchemaName::PolicyArtifact,
         SchemaName::CapabilityRegistry,
@@ -36,6 +37,7 @@ impl SchemaName {
         SchemaName::RouteDecision,
         SchemaName::DenialGuard,
         SchemaName::GnatDispatchEnvelope,
+        SchemaName::GnatDispatchForensicEvent,
     ];
 
     pub const fn all() -> &'static [SchemaName] {
@@ -56,6 +58,7 @@ impl SchemaName {
             SchemaName::RouteDecision => "route-decision",
             SchemaName::DenialGuard => "denial-guard",
             SchemaName::GnatDispatchEnvelope => "gnat-dispatch-envelope",
+            SchemaName::GnatDispatchForensicEvent => "gnat-dispatch-forensic-event",
         }
     }
 
@@ -73,6 +76,7 @@ impl SchemaName {
             SchemaName::RouteDecision => "route-decision.schema.json",
             SchemaName::DenialGuard => "denial-guard.schema.json",
             SchemaName::GnatDispatchEnvelope => "gnat-dispatch-envelope.schema.json",
+            SchemaName::GnatDispatchForensicEvent => "gnat-dispatch-forensic-event.schema.json",
         }
     }
 

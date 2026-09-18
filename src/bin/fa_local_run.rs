@@ -487,9 +487,10 @@ fn main() {
                 &capabilities,
                 &shard_enrichments,
                 &adapter,
+                fa_local::domain::shared::now_utc(),
             ) {
-                Ok(outcome) => {
-                    let (output, exit_code) = gnat_dispatch_outcome_to_json(outcome);
+                Ok(result) => {
+                    let (output, exit_code) = gnat_dispatch_result_to_json(result);
                     println!(
                         "{}",
                         serde_json::to_string_pretty(&output).expect("output serializes")
@@ -565,7 +566,7 @@ fn main() {
                 "  forensics-query   Query a SQLite forensic store by correlation-id or event-type"
             );
             eprintln!(
-                "  gnat-dispatch     Negotiate a Cortex Gnat dispatch envelope and, if admitted, dispatch every declared shard to Cortex"
+                "  gnat-dispatch     Negotiate a Cortex Gnat dispatch envelope, dispatch every declared shard if admitted, and record a forensic event for each outcome"
             );
             eprintln!(
                 "  status            Emit a structured FA Local posture and readiness report"
@@ -688,19 +689,26 @@ fn read_json_file(path: &str) -> Value {
     })
 }
 
-/// Renders a [`GnatDispatchRunOutcome`](fa_local::app::gnat_dispatch_pipeline_service::GnatDispatchRunOutcome)
+/// Renders a [`GnatDispatchRunResult`](fa_local::app::gnat_dispatch_pipeline_service::GnatDispatchRunResult)
 /// as the `gnat-dispatch` command's JSON output and exit code. Exit 0 only
 /// for a fully dispatched run where every shard's receipt reports
 /// `state: "complete"`; a denial, a serial-fallback report, or any
-/// not-completed or unavailable shard exits 1 -- the full truthful detail
-/// is still always printed, never traded away for a clean exit code.
-fn gnat_dispatch_outcome_to_json(
-    outcome: fa_local::app::gnat_dispatch_pipeline_service::GnatDispatchRunOutcome,
+/// not-completed or unavailable shard exits 1 -- the full truthful detail,
+/// including every recorded forensic event, is still always printed, never
+/// traded away for a clean exit code.
+fn gnat_dispatch_result_to_json(
+    result: fa_local::app::gnat_dispatch_pipeline_service::GnatDispatchRunResult,
 ) -> (Value, i32) {
     use fa_local::app::gnat_dispatch_pipeline_service::GnatDispatchRunOutcome;
     use fa_local::integrations::cortex::GnatShardDispatchResult;
 
-    match outcome {
+    let forensic_events_json: Vec<Value> = result
+        .forensic_events
+        .iter()
+        .map(|validated| serde_json::to_value(&validated.event).expect("event serializes"))
+        .collect();
+
+    let (mut output, exit_code) = match result.outcome {
         GnatDispatchRunOutcome::Denied(denial) => (
             serde_json::json!({
                 "outcome": "denied",
@@ -756,7 +764,10 @@ fn gnat_dispatch_outcome_to_json(
                 i32::from(!all_completed),
             )
         }
-    }
+    };
+
+    output["forensic_events"] = Value::Array(forensic_events_json);
+    (output, exit_code)
 }
 
 /// Parses one `--adapter <CAP_UUID>:<KIND>:<PARAMS>` value. `PARAMS` is

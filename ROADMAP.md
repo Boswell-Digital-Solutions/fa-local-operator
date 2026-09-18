@@ -41,16 +41,19 @@ Not yet delivered, in no particular priority order:
    contract ever carries); and `GnatDispatchPipelineService` (`fa-local-run gnat-dispatch`),
    which composes `GnatDispatchValidator::negotiate` with the bridge and the adapter so an
    admitted run's declared shards are actually dispatched, not just admitted — the first real
-   admission-to-dispatch code path this repo has. All bounded to the two worker types
-   `DECISIONS/0018` (COR) authorizes for this proving slice (`markdown_syntax`,
-   `plain_text_syntax`). Live-verified end to end, both paths: matching fingerprint digests
-   dispatch and complete against two real Cortex workers (exit 0); deliberately stale digests
-   report `stale` through the same real subprocess calls (exit 1). Still open, disclosed rather
-   than silently assumed away: no forensic recording for Gnat dispatch runs (`ForensicRecordKind`
-   is built entirely around FA Local's own `RouteDecision`/`ExecutionStatus` domain, which a
-   Cortex-initiated run has no equivalent of — needs its own forensic-event contract extension);
-   no deadline/timeout enforcement on the subprocess call. NeuronForge-Local and DF-Local
-   integrations remain unstarted (DF Local is its own separate item below).
+   admission-to-dispatch code path this repo has, and records a
+   `GnatDispatchForensicEvent` (`schemas/gnat-dispatch-forensic-event.schema.json`, a separate
+   bounded contract from `forensic-event.schema.json` since that schema's fields have no
+   equivalent for a Cortex-initiated run) for every negotiation outcome and every dispatched
+   shard's own outcome. All bounded to the two worker types `DECISIONS/0018` (COR) authorizes
+   for this proving slice (`markdown_syntax`, `plain_text_syntax`). Live-verified end to end,
+   both paths: matching fingerprint digests dispatch and complete against two real Cortex
+   workers, recording 3 real, independently schema-valid forensic events (exit 0); deliberately
+   stale digests report `stale` through the same real subprocess calls (exit 1). Still open,
+   disclosed rather than silently assumed away: no export sink (JSONL/SQLite) for Gnat dispatch
+   forensic events yet — recording is in-memory only, returned to the caller; no deadline/timeout
+   enforcement on the subprocess call. NeuronForge-Local and DF-Local integrations remain
+   unstarted (DF Local is its own separate item below).
 2. A daemon or networked API surface (FA Local stays a CLI binary with no HTTP surface by
    doctrine; this would need an explicit, separately-authorized architectural decision).
 3. A persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state
