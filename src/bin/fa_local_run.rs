@@ -430,6 +430,80 @@ fn main() {
             }
         }
 
+        Some("gnat-dispatch") => {
+            let flag_path = |flag: &str| -> Option<&str> {
+                args.windows(2)
+                    .find(|w| w[0] == flag)
+                    .map(|w| w[1].as_str())
+            };
+
+            let envelope_path = flag_path("--envelope").unwrap_or_else(|| {
+                eprintln!("error: gnat-dispatch requires --envelope");
+                process::exit(1);
+            });
+            let shards_path = flag_path("--shards").unwrap_or_else(|| {
+                eprintln!("error: gnat-dispatch requires --shards");
+                process::exit(1);
+            });
+            let cortex_repo_root = flag_path("--cortex-repo-root").unwrap_or_else(|| {
+                eprintln!("error: gnat-dispatch requires --cortex-repo-root");
+                process::exit(1);
+            });
+            let cortex_python = flag_path("--cortex-python").unwrap_or("python3");
+
+            let envelope_value = read_json_file(envelope_path);
+            let envelope =
+                fa_local::integrations::cortex::GnatDispatchEnvelope::load_contract_value(
+                    &envelope_value,
+                )
+                .unwrap_or_else(|e| {
+                    eprintln!("error: invalid --envelope: {e}");
+                    process::exit(1);
+                });
+
+            let shards_value = read_json_file(shards_path);
+            let shard_requests: Vec<fa_local::integrations::cortex::GnatShardDispatchRequest> =
+                serde_json::from_value(shards_value).unwrap_or_else(|e| {
+                    eprintln!("error: invalid --shards: {e}");
+                    process::exit(1);
+                });
+
+            // Hardcoded rather than CLI-configurable: there is no persistent
+            // Gnat-capability config yet, so this proving slice always
+            // reports FA Local's fixed default capability state.
+            let capabilities =
+                fa_local::integrations::cortex::GnatFaLocalCapabilityState::ready_default();
+            let adapter = fa_local::integrations::cortex::CortexSubprocessGnatShardAdapter::new(
+                fa_local::integrations::cortex::CortexSubprocessGnatShardAdapterConfig::new(
+                    cortex_python.into(),
+                    cortex_repo_root.into(),
+                ),
+            );
+
+            match fa_local::app::gnat_dispatch_pipeline_service::GnatDispatchPipelineService.run(
+                &envelope,
+                &capabilities,
+                &shard_requests,
+                &adapter,
+            ) {
+                Ok(outcome) => {
+                    let (output, exit_code) = gnat_dispatch_outcome_to_json(outcome);
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&output).expect("output serializes")
+                    );
+                    process::exit(exit_code);
+                }
+                Err(e) => {
+                    eprintln!("{{");
+                    eprintln!("  \"status\": \"error\",");
+                    eprintln!("  \"error\": \"{e}\"");
+                    eprintln!("}}");
+                    process::exit(1);
+                }
+            }
+        }
+
         Some("status") => {
             let facts = service_status::operational_facts();
             println!("{{");
@@ -487,6 +561,9 @@ fn main() {
             );
             eprintln!(
                 "  forensics-query   Query a SQLite forensic store by correlation-id or event-type"
+            );
+            eprintln!(
+                "  gnat-dispatch     Negotiate a Cortex Gnat dispatch envelope and, if admitted, dispatch every declared shard to Cortex"
             );
             eprintln!(
                 "  status            Emit a structured FA Local posture and readiness report"
@@ -547,6 +624,29 @@ fn main() {
             );
             eprintln!("  (exactly one of --correlation-id or --event-type is required)");
             eprintln!("");
+            eprintln!("OPTIONS FOR gnat-dispatch (all required except --cortex-python):");
+            eprintln!(
+                "  --envelope <FILE>            A GnatDispatchEnvelope.v1 JSON file (Cortex-constructed)"
+            );
+            eprintln!(
+                "  --shards <FILE>              A JSON array of full shard descriptors, one per shard declared in the envelope --"
+            );
+            eprintln!(
+                "                               each needs every GnatShard.v1 field plus local_path, which the envelope"
+            );
+            eprintln!(
+                "                               deliberately never carries; every descriptor must agree with the"
+            );
+            eprintln!(
+                "                               envelope's own run_id/shard_id/worker_type/source_ref"
+            );
+            eprintln!(
+                "  --cortex-repo-root <DIR>     The Cortex (COR) checkout root -- cortex_runtime.gnats.shard_cli must resolve from here"
+            );
+            eprintln!(
+                "  --cortex-python <BINARY>     Python interpreter to spawn Cortex's CLI with (default: python3)"
+            );
+            eprintln!("");
             eprintln!("EXIT CODES:");
             eprintln!(
                 "  0   Success (for route/execute: the resolved posture admits execution and, for execute, it completed)"
@@ -581,6 +681,77 @@ fn read_json_file(path: &str) -> Value {
         eprintln!("error: could not parse {path:?} as JSON: {e}");
         process::exit(1);
     })
+}
+
+/// Renders a [`GnatDispatchRunOutcome`](fa_local::app::gnat_dispatch_pipeline_service::GnatDispatchRunOutcome)
+/// as the `gnat-dispatch` command's JSON output and exit code. Exit 0 only
+/// for a fully dispatched run where every shard's receipt reports
+/// `state: "complete"`; a denial, a serial-fallback report, or any
+/// not-completed or unavailable shard exits 1 -- the full truthful detail
+/// is still always printed, never traded away for a clean exit code.
+fn gnat_dispatch_outcome_to_json(
+    outcome: fa_local::app::gnat_dispatch_pipeline_service::GnatDispatchRunOutcome,
+) -> (Value, i32) {
+    use fa_local::app::gnat_dispatch_pipeline_service::GnatDispatchRunOutcome;
+    use fa_local::integrations::cortex::GnatShardDispatchResult;
+
+    match outcome {
+        GnatDispatchRunOutcome::Denied(denial) => (
+            serde_json::json!({
+                "outcome": "denied",
+                "denial": denial,
+            }),
+            1,
+        ),
+        GnatDispatchRunOutcome::SerialFallbackPermitted(admission) => (
+            serde_json::json!({
+                "outcome": "serial_fallback_permitted",
+                "admission": admission,
+            }),
+            1,
+        ),
+        GnatDispatchRunOutcome::Dispatched {
+            admission,
+            shard_results,
+        } => {
+            let mut all_completed = true;
+            let shard_results_json: Vec<Value> = shard_results
+                .into_iter()
+                .map(|(shard_id, result)| match result {
+                    GnatShardDispatchResult::Completed { receipt } => serde_json::json!({
+                        "shard_id": shard_id,
+                        "outcome": "completed",
+                        "receipt": receipt,
+                    }),
+                    GnatShardDispatchResult::NotCompleted { receipt } => {
+                        all_completed = false;
+                        serde_json::json!({
+                            "shard_id": shard_id,
+                            "outcome": "not_completed",
+                            "receipt": receipt,
+                        })
+                    }
+                    GnatShardDispatchResult::DispatchUnavailable { summary } => {
+                        all_completed = false;
+                        serde_json::json!({
+                            "shard_id": shard_id,
+                            "outcome": "dispatch_unavailable",
+                            "summary": summary,
+                        })
+                    }
+                })
+                .collect();
+
+            (
+                serde_json::json!({
+                    "outcome": "dispatched",
+                    "admission": admission,
+                    "shard_results": shard_results_json,
+                }),
+                i32::from(!all_completed),
+            )
+        }
+    }
 }
 
 /// Parses one `--adapter <CAP_UUID>:<KIND>:<PARAMS>` value. `PARAMS` is
