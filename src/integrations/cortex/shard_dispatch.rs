@@ -30,6 +30,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+use serde::Deserialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -45,7 +46,7 @@ pub const AUTHORIZED_WORKER_TYPES: [GnatWorkerType; 2] = [
 
 /// A Cortex Gnat source fingerprint, matching COR's own `SourceFingerprint`
 /// (`schemas/gnat-shard.schema.json`'s `source_fingerprint` object).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct GnatSourceFingerprint {
     pub algorithm: String,
     pub digest: String,
@@ -64,7 +65,7 @@ pub struct GnatSourceFingerprint {
 /// envelope's shard summary), which lacks several of these fields --
 /// bridging admission negotiation into a full runnable shard descriptor is
 /// a separate, later concern.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct GnatShardDispatchRequest {
     pub run_id: String,
     pub shard_id: String,

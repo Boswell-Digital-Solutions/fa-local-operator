@@ -29,19 +29,24 @@ Delivered since the list below was last trimmed:
 Not yet delivered, in no particular priority order:
 
 1. Broad cross-service adapter integrations (adapters that reach real peer services — Cortex,
-   NeuronForge-Local, DF Local — instead of local-only delivery). Cortex is in progress as a
-   three-part slice, two parts landed: (1, COR repo) `cortex_runtime/gnats/shard_cli.py`, a
-   bounded, spawnable single-shard CLI entry point; (2, this repo)
-   `integrations::cortex::CortexSubprocessGnatShardAdapter`, which spawns it and parses back a
-   `GnatWorkerReceipt.v1`, live-verified against the real COR checkout. Both bounded to the two
-   worker types `DECISIONS/0018` (COR) authorizes for this proving slice (`markdown_syntax`,
-   `plain_text_syntax`). Still open: (3) wiring `GnatDispatchValidator::negotiate` through this
-   adapter into forensic recording and a CLI surface — there is still no code path from an
-   admitted Gnat run to an actual dispatched shard. Also still open: bridging
-   `GnatDispatchShard` (the negotiation-time envelope's shard summary) into a full runnable
-   `GnatShardDispatchRequest` (today the caller must already have the complete shard descriptor
-   and real `local_path` in hand); deadline/timeout enforcement on the subprocess call; and
-   NeuronForge-Local/DF-Local remain unstarted (DF Local is its own separate item below).
+   NeuronForge-Local, DF Local — instead of local-only delivery). The Cortex Gnat proving slice
+   is delivered end to end and live-verified against the real COR checkout: (COR repo)
+   `cortex_runtime/gnats/shard_cli.py`, a bounded, spawnable single-shard CLI entry point;
+   (this repo) `integrations::cortex::CortexSubprocessGnatShardAdapter`, which spawns it and
+   parses back a `GnatWorkerReceipt.v1`; and `GnatDispatchPipelineService` (`fa-local-run
+   gnat-dispatch`), which composes `GnatDispatchValidator::negotiate` with that adapter so an
+   admitted run's declared shards are actually dispatched, not just admitted — the first real
+   admission-to-dispatch code path this repo has. All bounded to the two worker types
+   `DECISIONS/0018` (COR) authorizes for this proving slice (`markdown_syntax`,
+   `plain_text_syntax`). Still open, disclosed rather than silently assumed away: no forensic
+   recording for Gnat dispatch runs (`ForensicRecordKind` is built entirely around FA Local's own
+   `RouteDecision`/`ExecutionStatus` domain, which a Cortex-initiated run has no equivalent of —
+   needs its own forensic-event contract extension); no bridge from `GnatDispatchShard` (the
+   negotiation-time envelope's shard summary) to a full runnable `GnatShardDispatchRequest` (the
+   caller must supply the complete shard descriptor, including real `local_path`, directly —
+   `gnat-dispatch` only checks the two are consistent, never derives one from the other); no
+   deadline/timeout enforcement on the subprocess call. NeuronForge-Local and DF-Local
+   integrations remain unstarted (DF Local is its own separate item below).
 2. A daemon or networked API surface (FA Local stays a CLI binary with no HTTP surface by
    doctrine; this would need an explicit, separately-authorized architectural decision).
 3. A persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state
