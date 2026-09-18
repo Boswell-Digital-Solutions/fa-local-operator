@@ -1,0 +1,15 @@
+{
+  "forensic_event_id": "e3e3e3e3-e3e3-4ee3-8ee3-e3e3e3e3e3e3",
+  "correlation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "run_id": "gnat-run-fixture-001",
+  "event_type": "gnat_shard_dispatched",
+  "negotiation_outcome": "ready_for_fa_local_dispatch",
+  "shard_id": null,
+  "worker_type": "markdown_syntax",
+  "shard_outcome": "completed",
+  "receipt_state": "complete",
+  "timestamp_utc": "2030-01-01T00:10:01Z",
+  "summary": "Cortex Gnat shard completed.",
+  "redaction_level": "linkage_only",
+  "payload_minimized": true
+}

@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use chrono::{TimeZone, Utc};
 use serde_json::json;
 
 use fa_local::app::gnat_dispatch_pipeline_service::{
@@ -11,9 +12,13 @@ use fa_local::app::gnat_dispatch_pipeline_service::{
 };
 use fa_local::integrations::cortex::{
     GnatDispatchAdmissionState, GnatDispatchEnvelope, GnatFaLocalCapabilityState,
-    GnatShardDeliveryAdapter, GnatShardDispatchRequest, GnatShardDispatchResult,
-    GnatShardEnrichment,
+    GnatForensicEventType, GnatNegotiationOutcome, GnatReceiptState, GnatShardDeliveryAdapter,
+    GnatShardDispatchRequest, GnatShardDispatchResult, GnatShardEnrichment, GnatShardOutcome,
 };
+
+fn ts() -> chrono::DateTime<Utc> {
+    Utc.with_ymd_and_hms(2030, 1, 1, 0, 10, 0).unwrap()
+}
 
 fn load_basic_envelope() -> GnatDispatchEnvelope {
     let value = support::load_fixture_json("valid", "gnat-dispatch-envelope-basic.json");
@@ -76,11 +81,11 @@ fn a_ready_run_dispatches_every_declared_shard() {
     let shard_enrichments = basic_enrichments();
     let adapter = StubGnatShardAdapter::default();
 
-    let outcome = GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter)
+    let result = GnatDispatchPipelineService
+        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
         .unwrap();
 
-    match outcome {
+    match result.outcome {
         GnatDispatchRunOutcome::Dispatched {
             admission,
             shard_results,
@@ -100,6 +105,39 @@ fn a_ready_run_dispatches_every_declared_shard() {
 }
 
 #[test]
+fn a_dispatched_run_records_one_negotiation_event_and_one_event_per_shard() {
+    let envelope = load_basic_envelope();
+    let capabilities = GnatFaLocalCapabilityState::ready_default();
+    let shard_enrichments = basic_enrichments();
+    let adapter = StubGnatShardAdapter::default();
+
+    let result = GnatDispatchPipelineService
+        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
+        .unwrap();
+
+    assert_eq!(result.forensic_events.len(), 3);
+
+    let negotiation = &result.forensic_events[0].event;
+    assert_eq!(
+        negotiation.event_type,
+        GnatForensicEventType::GnatDispatchNegotiated
+    );
+    assert_eq!(
+        negotiation.negotiation_outcome,
+        GnatNegotiationOutcome::ReadyForFaLocalDispatch
+    );
+    assert!(negotiation.shard_id.is_none());
+
+    for shard_event in &result.forensic_events[1..] {
+        let event = &shard_event.event;
+        assert_eq!(event.event_type, GnatForensicEventType::GnatShardDispatched);
+        assert_eq!(event.shard_outcome, Some(GnatShardOutcome::Completed));
+        assert_eq!(event.receipt_state, Some(GnatReceiptState::Complete));
+        assert!(event.shard_id.is_some());
+    }
+}
+
+#[test]
 fn the_bridge_merges_declared_envelope_fields_with_enrichment_fields() {
     let envelope = load_basic_envelope();
     let capabilities = GnatFaLocalCapabilityState::ready_default();
@@ -107,7 +145,7 @@ fn the_bridge_merges_declared_envelope_fields_with_enrichment_fields() {
     let adapter = StubGnatShardAdapter::default();
 
     GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter)
+        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
         .unwrap();
 
     let received = adapter.received.lock().unwrap();
@@ -149,15 +187,23 @@ fn an_unavailable_run_with_serial_fallback_never_dispatches() {
     let shard_enrichments = basic_enrichments();
     let adapter = StubGnatShardAdapter::default();
 
-    let outcome = GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter)
+    let result = GnatDispatchPipelineService
+        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
         .unwrap();
 
     assert!(matches!(
-        outcome,
+        result.outcome,
         GnatDispatchRunOutcome::SerialFallbackPermitted(_)
     ));
     assert_eq!(adapter.calls.load(Ordering::SeqCst), 0);
+
+    // Exactly one negotiation event, no shard events -- Cortex's own job in
+    // this case, not this pipeline's.
+    assert_eq!(result.forensic_events.len(), 1);
+    assert_eq!(
+        result.forensic_events[0].event.negotiation_outcome,
+        GnatNegotiationOutcome::SerialFallbackPermitted
+    );
 }
 
 #[test]
@@ -168,12 +214,18 @@ fn a_denied_run_never_dispatches() {
     let shard_enrichments = basic_enrichments();
     let adapter = StubGnatShardAdapter::default();
 
-    let outcome = GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter)
+    let result = GnatDispatchPipelineService
+        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
         .unwrap();
 
-    assert!(matches!(outcome, GnatDispatchRunOutcome::Denied(_)));
+    assert!(matches!(result.outcome, GnatDispatchRunOutcome::Denied(_)));
     assert_eq!(adapter.calls.load(Ordering::SeqCst), 0);
+
+    assert_eq!(result.forensic_events.len(), 1);
+    assert_eq!(
+        result.forensic_events[0].event.negotiation_outcome,
+        GnatNegotiationOutcome::Denied
+    );
 }
 
 #[test]
@@ -185,7 +237,7 @@ fn a_declared_shard_with_no_enrichment_supplied_is_rejected_before_negotiation()
     let adapter = StubGnatShardAdapter::default();
 
     let error = GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter)
+        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
         .unwrap_err();
 
     assert!(error.to_string().contains("no shard enrichment supplied"));
@@ -211,10 +263,84 @@ fn an_enrichment_for_an_undeclared_shard_is_simply_ignored() {
     );
     let adapter = StubGnatShardAdapter::default();
 
-    let outcome = GnatDispatchPipelineService
-        .run(&envelope, &capabilities, &shard_enrichments, &adapter)
+    let result = GnatDispatchPipelineService
+        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
         .unwrap();
 
-    assert!(matches!(outcome, GnatDispatchRunOutcome::Dispatched { .. }));
+    assert!(matches!(
+        result.outcome,
+        GnatDispatchRunOutcome::Dispatched { .. }
+    ));
     assert_eq!(adapter.calls.load(Ordering::SeqCst), 2);
+}
+
+/// Adapter reporting a truthful non-completion for every shard, so tests
+/// can assert the forensic event correctly reflects a `NotCompleted`
+/// outcome (as opposed to the always-`Completed` `StubGnatShardAdapter`).
+struct NotCompletedGnatShardAdapter;
+
+impl GnatShardDeliveryAdapter for NotCompletedGnatShardAdapter {
+    fn adapter_id(&self) -> &'static str {
+        "not-completed-gnat-shard-adapter"
+    }
+
+    fn deliver_shard(&self, request: &GnatShardDispatchRequest) -> GnatShardDispatchResult {
+        GnatShardDispatchResult::NotCompleted {
+            receipt: json!({"state": "stale", "shard_id": request.shard_id}),
+        }
+    }
+}
+
+#[test]
+fn a_not_completed_shard_records_its_real_receipt_state() {
+    let envelope = load_basic_envelope();
+    let capabilities = GnatFaLocalCapabilityState::ready_default();
+    let shard_enrichments = basic_enrichments();
+    let adapter = NotCompletedGnatShardAdapter;
+
+    let result = GnatDispatchPipelineService
+        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
+        .unwrap();
+
+    for shard_event in &result.forensic_events[1..] {
+        let event = &shard_event.event;
+        assert_eq!(event.shard_outcome, Some(GnatShardOutcome::NotCompleted));
+        assert_eq!(event.receipt_state, Some(GnatReceiptState::Stale));
+    }
+}
+
+/// Adapter reporting the shard's capability as entirely unreachable.
+struct UnavailableGnatShardAdapter;
+
+impl GnatShardDeliveryAdapter for UnavailableGnatShardAdapter {
+    fn adapter_id(&self) -> &'static str {
+        "unavailable-gnat-shard-adapter"
+    }
+
+    fn deliver_shard(&self, _request: &GnatShardDispatchRequest) -> GnatShardDispatchResult {
+        GnatShardDispatchResult::DispatchUnavailable {
+            summary: "no delivery adapter registered for this shard".to_owned(),
+        }
+    }
+}
+
+#[test]
+fn a_dispatch_unavailable_shard_records_no_receipt_state() {
+    let envelope = load_basic_envelope();
+    let capabilities = GnatFaLocalCapabilityState::ready_default();
+    let shard_enrichments = basic_enrichments();
+    let adapter = UnavailableGnatShardAdapter;
+
+    let result = GnatDispatchPipelineService
+        .run(&envelope, &capabilities, &shard_enrichments, &adapter, ts())
+        .unwrap();
+
+    for shard_event in &result.forensic_events[1..] {
+        let event = &shard_event.event;
+        assert_eq!(
+            event.shard_outcome,
+            Some(GnatShardOutcome::DispatchUnavailable)
+        );
+        assert_eq!(event.receipt_state, None);
+    }
 }

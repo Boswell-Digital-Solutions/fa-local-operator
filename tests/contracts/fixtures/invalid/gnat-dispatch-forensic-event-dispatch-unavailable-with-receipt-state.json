@@ -1,0 +1,15 @@
+{
+  "forensic_event_id": "e4e4e4e4-e4e4-4ee4-8ee4-e4e4e4e4e4e4",
+  "correlation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "run_id": "gnat-run-fixture-001",
+  "event_type": "gnat_shard_dispatched",
+  "negotiation_outcome": "ready_for_fa_local_dispatch",
+  "shard_id": "gnat-run-fixture-001-shard-0000",
+  "worker_type": "markdown_syntax",
+  "shard_outcome": "dispatch_unavailable",
+  "receipt_state": "complete",
+  "timestamp_utc": "2030-01-01T00:10:01Z",
+  "summary": "no delivery adapter registered for this shard.",
+  "redaction_level": "linkage_only",
+  "payload_minimized": true
+}
