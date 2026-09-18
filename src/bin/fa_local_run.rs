@@ -548,6 +548,74 @@ fn main() {
             }
         }
 
+        Some("neuronforge-dispatch") => {
+            use fa_local::integrations::neuronforge_local::{
+                ADMITTED_TASK_ID, HttpNeuronForgeLocalAdapter, HttpNeuronForgeLocalAdapterConfig,
+                ModelResourceDisclosure, NeuronForgeTaskDeliveryAdapter,
+                NeuronForgeTaskDispatchRequest, NeuronForgeTaskDispatchResult,
+            };
+
+            let flag_path = |flag: &str| -> Option<&str> {
+                args.windows(2)
+                    .find(|w| w[0] == flag)
+                    .map(|w| w[1].as_str())
+            };
+
+            let scene_path = flag_path("--scene").unwrap_or_else(|| {
+                eprintln!("error: neuronforge-dispatch requires --scene");
+                process::exit(1);
+            });
+            let neuronforge_url = flag_path("--neuronforge-url").map(str::to_owned);
+            let model = flag_path("--model").unwrap_or("qwen2.5:14b");
+
+            let scene_text = std::fs::read_to_string(scene_path).unwrap_or_else(|e| {
+                eprintln!("error: could not read --scene {scene_path:?}: {e}");
+                process::exit(1);
+            });
+
+            let adapter = HttpNeuronForgeLocalAdapter::new(HttpNeuronForgeLocalAdapterConfig::new(
+                neuronforge_url,
+            ));
+
+            let request = NeuronForgeTaskDispatchRequest {
+                dispatch_id: uuid::Uuid::new_v4().to_string(),
+                request_id: uuid::Uuid::new_v4().to_string(),
+                task_id: ADMITTED_TASK_ID.to_owned(),
+                scene_text,
+                model_resource_disclosure: ModelResourceDisclosure {
+                    route_class: "WORKHORSE_LOCAL".to_owned(),
+                    model_id: model.to_owned(),
+                    resource_budget_class: "workhorse_local".to_owned(),
+                    execution_mode: "local_model".to_owned(),
+                },
+                operator_visible_message:
+                    "FA-Local dispatched one bounded style-analysis task; the result is a \
+                     non-canonical candidate only."
+                        .to_owned(),
+            };
+
+            let result = adapter.dispatch_task(&request);
+            let (output, exit_code) = match result {
+                NeuronForgeTaskDispatchResult::Completed { receipt } => (
+                    serde_json::json!({ "outcome": "completed", "receipt": receipt }),
+                    0,
+                ),
+                NeuronForgeTaskDispatchResult::NotCompleted { receipt } => (
+                    serde_json::json!({ "outcome": "not_completed", "receipt": receipt }),
+                    1,
+                ),
+                NeuronForgeTaskDispatchResult::DispatchUnavailable { summary } => (
+                    serde_json::json!({ "outcome": "dispatch_unavailable", "summary": summary }),
+                    1,
+                ),
+            };
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&output).expect("output serializes")
+            );
+            process::exit(exit_code);
+        }
+
         Some("status") => {
             let facts = service_status::operational_facts();
             println!("{{");
@@ -608,6 +676,9 @@ fn main() {
             );
             eprintln!(
                 "  gnat-dispatch     Negotiate a Cortex Gnat dispatch envelope, dispatch every declared shard if admitted, and record a forensic event for each outcome"
+            );
+            eprintln!(
+                "  neuronforge-dispatch  Dispatch the one ADR-002-admitted task (analyze.style.scene.v1) to NeuronForge Local and report its outcome"
             );
             eprintln!(
                 "  status            Emit a structured FA Local posture and readiness report"
@@ -700,6 +771,17 @@ fn main() {
             );
             eprintln!(
                 "  --forensic-sqlite <FILE>     Also record every forensic event into a queryable SQLite store (mutually exclusive with --forensic-export)"
+            );
+            eprintln!("");
+            eprintln!("OPTIONS FOR neuronforge-dispatch (--scene required; the rest optional):");
+            eprintln!(
+                "  --scene <FILE>               Plain-text scene file to analyze (analyze.style.scene.v1's only admitted task)"
+            );
+            eprintln!(
+                "  --neuronforge-url <URL>      NeuronForge Local base URL (default: $NEURONFORGE_LOCAL_URL or http://127.0.0.1:8000)"
+            );
+            eprintln!(
+                "  --model <ID>                 Ollama model id to request (default: qwen2.5:14b, this repo's documented baseline)"
             );
             eprintln!("");
             eprintln!("EXIT CODES:");
