@@ -1,3 +1,4 @@
+pub mod forensic_export;
 pub mod forensics;
 pub mod shard_dispatch;
 
@@ -13,6 +14,10 @@ use crate::domain::shared::{
 };
 use crate::errors::FaLocalResult;
 
+pub use forensic_export::{
+    GnatForensicEventExportAdapter, JsonlGnatForensicExportAdapter,
+    JsonlGnatForensicExportAdapterConfig, SqliteGnatForensicStore,
+};
 pub use forensics::{
     GnatDispatchForensicEvent, GnatForensicEventType, GnatForensicRedactionLevel,
     GnatNegotiationOutcome, GnatReceiptState, GnatShardOutcome, ValidatedGnatDispatchForensicEvent,
