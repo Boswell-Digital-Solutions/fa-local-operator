@@ -74,3 +74,48 @@ self-scoped as deferring to `doc/system`/`doc/FLOSYSTEM.md` on conflict rather t
 current implementation state themselves, so they were not making false claims. `docs/README.md`
 stub directories (`architecture/`, `contracts/`, `controls/`, `doctrine/`, `risks/`) are empty
 placeholders, not stale claims, and were left alone.
+
+---
+
+## KI-FLO-20260918-003 — `mentions_fallback()` false-positives on any step id or adapter text that happens to contain "fallback"
+
+**Date found:** 2026-09-18
+**Status:** open
+
+**What is wrong:** `ExecutionStatus::validate()` (`src/domain/status/mod.rs:111-120`), and the
+matching guards in `ValidatedForensicEvent` (`src/domain/forensics/mod.rs:126`) and
+`ValidatedFrictionPayload` (`src/domain/friction/mod.rs:130`), reject any status/event/payload
+whose `completion_summary`, `failure_summary`, or `truthful_user_visible_summary` contains the
+case-insensitive substring `"fallback"` unless `degraded_subtype` is explicitly
+`DegradedFallbackEquivalent`/`DegradedFallbackLimited`. Found live-testing `fa-local-run execute
+--per-step-dispatch` (PRs #14/#15) with a plan step named `step_export_fallback`: the in-progress
+status's message (`"executing externally delivered step step_export_fallback"`,
+`build_in_progress_statuses_from_route` in `src/app/execution_service.rs`) embeds the step id
+verbatim, has no `degraded_subtype` at all (in-progress statuses never set one), and the run
+hard-errored with `contract invalid: execution status cannot mention fallback without an explicit
+fallback degraded_subtype` instead of returning a normal execution trace.
+
+**Root cause:** `mentions_fallback()` (`src/domain/status/mod.rs:626-630`) is a blunt
+case-insensitive substring scan over free-text fields that legitimately embed untrusted,
+operator/plan-author-controlled text: a step id (`is_valid_step_id`, same file, only checks
+length 1-48 and charset — nothing stops the substring "fallback" appearing in an otherwise
+ordinary step name) via `format!("executing externally delivered step {step_id}")` and
+`format!("executing declared step {step_id}")`, and an adapter's own `failure_summary`
+(`AdapterDeliveryResult::FailedAtDeclaredStep`, validated only for length 1-160 chars, not
+content). The guard's real intent — catching a caller that *claims* a fallback outcome in text
+without tagging the matching `degraded_subtype` — cannot distinguish that from a step or adapter
+message that merely contains the word for unrelated reasons. This is independent of the new
+per-step fallback coordination shipped in PR #15: it predates that change and would trip on the
+*pre-existing* per-step in-progress path just as easily for any step named e.g.
+`build_fallback_ui`, fallback coordination or not.
+
+**Fix, if any:** Not fixed yet — the right fix is a design decision (narrow the check to only the
+specific coordinator-constructed messages that actually assert a fallback outcome, rather than
+scanning all free text; or validate step ids to forbid the substring; or drop the heuristic for
+fields that can carry untrusted text) that deserves its own reviewed change, not a same-session
+patch bundled into an unrelated live-test pass.
+
+**Scope:** open. Affects `src/domain/status/mod.rs`, `src/domain/forensics/mod.rs`,
+`src/domain/friction/mod.rs`, and any `fa-local-run execute` caller (whole-route or per-step) whose
+plan step ids or adapter failure summaries happen to contain "fallback" — independent of whether
+the plan declares any `fallback_references` at all.
