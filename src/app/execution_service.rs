@@ -3,7 +3,7 @@ use crate::adapters::execution_delivery::{
     AdapterDeliveryRequest, AdapterDeliveryResult, ExternalRouteDeliveryAdapter,
 };
 use crate::app::routing_service::{RoutePathKind, SelectedExecutionRoute};
-use crate::domain::execution::ValidatedExecutionPlan;
+use crate::domain::execution::{CancellationPolicy, ValidatedExecutionPlan};
 use crate::domain::routing::RouteDecision;
 use crate::domain::shared::{
     ApprovalPosture, DegradedSubtype, ExecutionState, TimestampUtc, now_utc,
@@ -323,6 +323,139 @@ impl ExecutionService {
                 ExecutionTrace::new(statuses)
             }
         }
+    }
+
+    /// Dispatches a validated plan one declared step at a time, resolving a
+    /// (possibly different) adapter per step from `registry` by that step's
+    /// own `capability_id` — beyond the single whole-route call in
+    /// [`Self::deliver_selected_route_via_registry`], which only ever
+    /// resolves one adapter for the route's top-level requested capability.
+    /// Each step's [`AdapterDeliveryRequest`] is scoped to that one step
+    /// (`declared_step_ids` of length one, no fallback references), so the
+    /// existing concrete adapters need no changes to be dispatched this way.
+    ///
+    /// Declared fallback references are not yet coordinated across steps in
+    /// this path — an adapter reporting a fallback completion for a
+    /// per-step call is an unsupported condition here, not a silent
+    /// mismatch.
+    pub fn deliver_plan_per_step_via_registry(
+        &self,
+        route: &SelectedExecutionRoute,
+        validated_plan: &ValidatedExecutionPlan,
+        registry: &AdapterRegistry,
+        context: CoordinationContext,
+    ) -> FaLocalResult<ExecutionTrace> {
+        validate_selected_route_for_delivery(route)?;
+
+        if Some(validated_plan.plan.execution_plan_id) != route.execution_plan_id
+            || Some(validated_plan.stable_plan_hash.clone()) != route.stable_plan_hash
+        {
+            return Err(contract_invalid(
+                "per-step delivery plan does not match the selected route's plan",
+            ));
+        }
+
+        let mut statuses = vec![build_admitted_not_started_status_from_route(
+            route,
+            context.coordinated_at_utc,
+        )?];
+
+        let mut outcomes: Vec<(String, StepDeliveryOutcome)> = Vec::new();
+        let mut stop_dispatching = false;
+
+        for step in &validated_plan.plan.steps {
+            if stop_dispatching {
+                outcomes.push((step.step_id.clone(), StepDeliveryOutcome::Skipped));
+                continue;
+            }
+
+            statuses.extend(build_in_progress_statuses_from_route(
+                route,
+                std::slice::from_ref(&step.step_id),
+                context.started_at_utc,
+            )?);
+
+            let outcome = match registry.resolve(step.capability_id) {
+                None => StepDeliveryOutcome::Unavailable {
+                    summary: format!(
+                        "no delivery adapter registered for capability {}",
+                        step.capability_id
+                    ),
+                },
+                Some(adapter) => {
+                    let request = AdapterDeliveryRequest {
+                        route_decision_id: route.route_decision_id,
+                        correlation_id: route.correlation_id,
+                        request_id: route.request_id,
+                        resolved_approval_posture: route.resolved_approval_posture,
+                        requested_capability_id: step.capability_id,
+                        execution_plan_id: validated_plan.plan.execution_plan_id,
+                        stable_plan_hash: validated_plan.stable_plan_hash.clone(),
+                        declared_step_ids: vec![step.step_id.clone()],
+                        declared_capability_ids: vec![step.capability_id],
+                        declared_fallback_references: Vec::new(),
+                    };
+
+                    match adapter.deliver_route(&request) {
+                        AdapterDeliveryResult::DeliveredAllSteps => StepDeliveryOutcome::Completed,
+                        AdapterDeliveryResult::FailedAtDeclaredStep {
+                            failure_summary, ..
+                        } => {
+                            validate_required_summary(
+                                &failure_summary,
+                                "adapter delivery failure_summary",
+                            )?;
+                            StepDeliveryOutcome::Failed {
+                                summary: failure_summary,
+                            }
+                        }
+                        AdapterDeliveryResult::CanceledAtDeclaredStep { .. } => {
+                            StepDeliveryOutcome::Canceled
+                        }
+                        AdapterDeliveryResult::DependencyUnavailable { summary } => {
+                            validate_required_summary(
+                                &summary,
+                                "adapter delivery dependency summary",
+                            )?;
+                            StepDeliveryOutcome::Unavailable { summary }
+                        }
+                        AdapterDeliveryResult::CompletedWithDeclaredFallback { .. } => {
+                            return Err(contract_invalid(
+                                "declared fallback completion is not supported in per-step delivery",
+                            ));
+                        }
+                        AdapterDeliveryResult::Unsupported { summary } => {
+                            return Err(contract_invalid(format!(
+                                "unsupported adapter condition from {}: {summary}",
+                                adapter.adapter_id()
+                            )));
+                        }
+                    }
+                }
+            };
+
+            if matches!(
+                outcome,
+                StepDeliveryOutcome::Failed { .. }
+                    | StepDeliveryOutcome::Unavailable { .. }
+                    | StepDeliveryOutcome::Canceled
+            ) && validated_plan.plan.cancellation_policy
+                == CancellationPolicy::CancelRemainingSteps
+            {
+                stop_dispatching = true;
+            }
+
+            outcomes.push((step.step_id.clone(), outcome));
+        }
+
+        statuses.push(build_plan_outcome_status_from_route(
+            route,
+            &outcomes,
+            context.started_at_utc,
+            context.completed_at_utc,
+        )?);
+
+        ExecutionTrace::new(statuses)
     }
 
     fn deliver_via_adapter(
@@ -675,6 +808,150 @@ fn build_completed_status_from_route(
         Some(completion_summary.clone()),
         None,
         completion_summary,
+    )?)
+}
+
+#[derive(Debug, Clone)]
+enum StepDeliveryOutcome {
+    Completed,
+    Failed {
+        summary: String,
+    },
+    /// The adapter itself reported a cancellation for this step.
+    Canceled,
+    Unavailable {
+        summary: String,
+    },
+    /// Never dispatched: an earlier step already stopped the run under
+    /// `cancel_remaining_steps`. Distinct from `Canceled` (which means an
+    /// adapter *attempted and canceled* a step) so this never gets counted
+    /// as its own root cause when deciding the plan's final status below.
+    Skipped,
+}
+
+/// Aggregates every declared step's own delivery outcome into one final,
+/// truthful status for the whole plan: all-completed stays `Completed`; a
+/// mix of completed and not-completed steps becomes `PartialSuccess`
+/// (`degraded_partial`) rather than silently reporting either extreme;
+/// zero completed steps falls back to whichever single-outcome status
+/// already exists for that failure mode (`Failed`, `Canceled`, or
+/// `Degraded`/`UnavailableDependencyBlock` when every attempted step had no
+/// adapter at all) — judged only from steps that were actually attempted,
+/// since a step skipped after an earlier failure is a consequence, not a
+/// cause.
+fn build_plan_outcome_status_from_route(
+    route: &SelectedExecutionRoute,
+    outcomes: &[(String, StepDeliveryOutcome)],
+    started_at_utc: TimestampUtc,
+    completed_at_utc: TimestampUtc,
+) -> FaLocalResult<ValidatedExecutionStatus> {
+    let completed_count = outcomes
+        .iter()
+        .filter(|(_, outcome)| matches!(outcome, StepDeliveryOutcome::Completed))
+        .count();
+
+    if completed_count == outcomes.len() {
+        return build_completed_status_from_route(route, started_at_utc, completed_at_utc);
+    }
+
+    if completed_count > 0 {
+        let (failed_step_id, failure_summary) = outcomes
+            .iter()
+            .find_map(|(step_id, outcome)| match outcome {
+                StepDeliveryOutcome::Failed { summary } => Some((step_id.clone(), summary.clone())),
+                StepDeliveryOutcome::Unavailable { summary } => {
+                    Some((step_id.clone(), summary.clone()))
+                }
+                StepDeliveryOutcome::Canceled => {
+                    Some((step_id.clone(), "step was canceled".to_owned()))
+                }
+                StepDeliveryOutcome::Skipped => Some((
+                    step_id.clone(),
+                    "step was skipped after an earlier step did not complete".to_owned(),
+                )),
+                StepDeliveryOutcome::Completed => None,
+            })
+            .expect("mixed outcome always has at least one non-completed step");
+        return build_partial_success_status_from_route(
+            route,
+            started_at_utc,
+            completed_at_utc,
+            completed_count,
+            outcomes.len(),
+            failed_step_id,
+            failure_summary,
+        );
+    }
+
+    let attempted = outcomes
+        .iter()
+        .filter(|(_, outcome)| !matches!(outcome, StepDeliveryOutcome::Skipped));
+
+    if let Some((_, summary)) = attempted
+        .clone()
+        .find_map(|(step_id, outcome)| match outcome {
+            StepDeliveryOutcome::Failed { summary } => Some((step_id, summary)),
+            _ => None,
+        })
+    {
+        return build_failed_status_from_route(
+            route,
+            started_at_utc,
+            completed_at_utc,
+            summary.clone(),
+        );
+    }
+
+    if let Some((step_id, _)) = attempted
+        .clone()
+        .find(|(_, outcome)| matches!(outcome, StepDeliveryOutcome::Canceled))
+    {
+        return build_canceled_status_from_route(route, started_at_utc, completed_at_utc, step_id);
+    }
+
+    build_unavailable_dependency_status_from_route(
+        route,
+        completed_at_utc,
+        "no delivery adapter registered for any declared step".to_owned(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_partial_success_status_from_route(
+    route: &SelectedExecutionRoute,
+    started_at_utc: TimestampUtc,
+    completed_at_utc: TimestampUtc,
+    completed_count: usize,
+    total_count: usize,
+    failed_step_id: String,
+    failure_detail: String,
+) -> FaLocalResult<ValidatedExecutionStatus> {
+    let execution_plan_id = route.execution_plan_id.ok_or_else(|| {
+        contract_invalid("external delivery route must include execution_plan_id")
+    })?;
+    let stable_plan_hash = route
+        .stable_plan_hash
+        .clone()
+        .ok_or_else(|| contract_invalid("external delivery route must include stable_plan_hash"))?;
+    let completion_summary =
+        format!("{completed_count} of {total_count} declared plan steps completed");
+    let failure_summary = format!("step {failed_step_id} did not complete: {failure_detail}");
+
+    ValidatedExecutionStatus::new(ExecutionStatus::new(
+        route.request_id,
+        route.correlation_id,
+        Some(execution_plan_id),
+        Some(stable_plan_hash),
+        route.resolved_approval_posture,
+        ExecutionState::PartialSuccess,
+        Some(DegradedSubtype::DegradedPartial),
+        Some(started_at_utc),
+        completed_at_utc,
+        Some(completed_at_utc),
+        None,
+        Some(completion_summary),
+        Some(failure_summary),
+        format!("{completed_count} of {total_count} declared plan steps completed"),
     )?)
 }
 
