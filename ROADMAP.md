@@ -38,6 +38,18 @@ Delivered since the list below was last trimmed:
   rather than duplicating it. Exposed as `fa-local-run gnat-dispatch --forensic-export <FILE>|
   --forensic-sqlite <FILE>`. Live-verified end to end against the real COR checkout: both sinks
   independently produced 3 real records from the same dispatch run.
+- A first NeuronForge-Local proving slice: `integrations::neuronforge_local::HttpNeuronForgeLocalAdapter`
+  dispatches the one task neuronforge-local-operator's `ADR-002` admits
+  (`analyze.style.scene.v1`) to its `POST /api/v1/fa-local/task-dispatch` route over HTTP
+  (`ureq`, mirroring `DfLocalAdapter`'s client pattern, not a spawned subprocess). Any other
+  `task_id` is refused before ever making a network call. Exposed as `fa-local-run
+  neuronforge-dispatch --scene <FILE> [--neuronforge-url <URL>] [--model <ID>]`. Live-verified
+  end to end against a real running `neuronforge-local-operator` service and a real local Ollama
+  model (`qwen2.5:14b`): a real scene produced a genuine structured style-analysis candidate,
+  `schema_validation_status: "valid"`, every `registry_guardrails` flag `false`. Still open,
+  disclosed rather than silently assumed away: no forensic recording for NeuronForge-Local
+  dispatch runs yet (the same gap Cortex Gnat dispatch had before its own forensic-event
+  contract and export sinks landed).
 
 Not yet delivered, in no particular priority order:
 
@@ -68,8 +80,10 @@ Not yet delivered, in no particular priority order:
    independently schema-valid forensic events (exit 0); deliberately stale digests report
    `stale` through the same real subprocess calls (exit 1); an unrealistically tight deadline on
    one shard against the real COR checkout is killed promptly while a sibling shard in the same
-   run still completes. NeuronForge-Local integration remains unstarted; DF-Local's
-   execution-bridge writeback is delivered (above).
+   run still completes. A first NeuronForge-Local proving slice (task dispatch to
+   `analyze.style.scene.v1`, above) and DF-Local's execution-bridge writeback (above) are both
+   delivered; NeuronForge-Local dispatch still has no forensic recording, and no further
+   NeuronForge-Local task is admitted beyond the one `ADR-002` names.
 2. A daemon or networked API surface (FA Local stays a CLI binary with no HTTP surface by
    doctrine; this would need an explicit, separately-authorized architectural decision).
 3. A persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state

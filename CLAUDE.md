@@ -24,7 +24,7 @@ The crate is structured inside-out:
 - `domain/` — core vocabulary and pure decision primitives
 - `app/` — orchestration services that compose domain logic without absorbing policy authority (`decision_service`, `execution_pipeline_service`, `execution_service`, `routing_service`, `forensic_service`, `review_service`, `intake_service`)
 - `adapters/` — storage, schema, clock, hashing, and export boundaries (`execution_delivery/` adapters + `AdapterRegistry`; `exports/` JSONL and SQLite forensic sinks)
-- `integrations/` — keeps Cortex, NeuronForge Local, and DF Local behind explicit contracts. DF Local's execution-bridge writeback (Phase X4) is wired: `DfLocalAdapter::post_execution_status_event` POSTs a real `execution_status_event.v1` artifact to DataForge Local's `/api/v1/execution-bridge/status-events` (`dataforge-Local#35`). Cortex and NeuronForge Local integrations remain behind their own separate, not-yet-wired contracts.
+- `integrations/` — keeps Cortex, NeuronForge Local, and DF Local behind explicit contracts. DF Local's execution-bridge writeback (Phase X4) is wired: `DfLocalAdapter::post_execution_status_event` POSTs a real `execution_status_event.v1` artifact to DataForge Local's `/api/v1/execution-bridge/status-events` (`dataforge-Local#35`). Cortex's Gnat dispatch proving slice is fully delivered (negotiate → dispatch → forensics → deadline enforcement → export sinks). NeuronForge Local has a first proving slice (`HttpNeuronForgeLocalAdapter`, one ADR-002-admitted task, no forensic recording yet).
 
 FLO is the validating dispatcher of the local plane: **it validates plans and dispatches; it does not extract or prepare** (that is COR's job), and it is not a general-purpose executor.
 
