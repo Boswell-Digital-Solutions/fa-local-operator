@@ -54,17 +54,37 @@ pub struct GnatSourceFingerprint {
     pub modified_at: String,
 }
 
+/// Everything a [`GnatDispatchShard`](super::GnatDispatchShard) -- the
+/// envelope's own negotiation-time shard summary -- never carries, because
+/// the dispatch envelope contract deliberately keeps that summary minimal
+/// for negotiation: `source_path_token`, `media_type`, the source
+/// fingerprint's algorithm/byte-count/modified-at (the envelope carries
+/// only the bare digest, already used to negotiate), `max_bytes`, and --
+/// permanently, by design, never obtainable from any schema-validated
+/// contract -- the real local filesystem path. Keyed by `shard_id` and
+/// merged with the matching declared shard via
+/// [`GnatShardDispatchRequest::from_declared_shard`], this is the actual
+/// bridge from admission negotiation to a full runnable shard descriptor:
+/// the caller supplies only what the envelope genuinely lacks, not a
+/// second, redundant copy of what it already declares.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct GnatShardEnrichment {
+    pub source_path_token: String,
+    pub media_type: String,
+    pub fingerprint_algorithm: String,
+    pub fingerprint_byte_count: u64,
+    pub fingerprint_modified_at: String,
+    pub max_bytes: u64,
+    pub local_path: PathBuf,
+}
+
 /// Everything needed to actually dispatch one already-planned Cortex Gnat
 /// shard -- the full `GnatShard.v1` contract fields, plus the real
-/// `local_path` that contract deliberately excludes (see
-/// `source_path_token` in COR's `gnat-shard.schema.json`; the local
-/// filesystem path never crosses a schema-validated contract boundary, by
-/// design). This is caller-supplied, complete input: this module does not
-/// derive a runnable shard from
-/// [`GnatDispatchShard`](super::GnatDispatchShard) (the negotiation-time
-/// envelope's shard summary), which lacks several of these fields --
-/// bridging admission negotiation into a full runnable shard descriptor is
-/// a separate, later concern.
+/// `local_path` that contract deliberately excludes. Built from a declared
+/// [`GnatDispatchShard`](super::GnatDispatchShard) plus a
+/// [`GnatShardEnrichment`] via
+/// [`GnatShardDispatchRequest::from_declared_shard`], not constructed by
+/// hand in normal use.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct GnatShardDispatchRequest {
     pub run_id: String,
@@ -81,6 +101,38 @@ pub struct GnatShardDispatchRequest {
 }
 
 impl GnatShardDispatchRequest {
+    /// Builds a full dispatch request from `declared` (the envelope's own
+    /// negotiation-time shard summary) plus `enrichment` (everything the
+    /// envelope never carries). Every field the envelope already declares
+    /// (`shard_id`, `ordinal`, `worker_type`, `source_ref`, the fingerprint
+    /// digest, `deadline_ms`) comes from `declared` alone -- `enrichment`
+    /// supplies only what genuinely isn't there, so there is exactly one
+    /// source of truth for each field, never two that could disagree.
+    pub fn from_declared_shard(
+        run_id: &str,
+        declared: &super::GnatDispatchShard,
+        enrichment: &GnatShardEnrichment,
+    ) -> Self {
+        Self {
+            run_id: run_id.to_owned(),
+            shard_id: declared.shard_id.clone(),
+            ordinal: u32::from(declared.ordinal),
+            worker_type: declared.worker_type,
+            source_ref: declared.source_ref.clone(),
+            source_path_token: enrichment.source_path_token.clone(),
+            media_type: enrichment.media_type.clone(),
+            source_fingerprint: GnatSourceFingerprint {
+                algorithm: enrichment.fingerprint_algorithm.clone(),
+                digest: declared.source_fingerprint_digest.clone(),
+                byte_count: enrichment.fingerprint_byte_count,
+                modified_at: enrichment.fingerprint_modified_at.clone(),
+            },
+            deadline_ms: declared.deadline_ms,
+            max_bytes: enrichment.max_bytes,
+            local_path: enrichment.local_path.clone(),
+        }
+    }
+
     /// Builds the `gnat-shard.schema.json`-shaped JSON Cortex's CLI expects
     /// as input -- everything except `local_path`, which travels as a
     /// separate CLI argument, never as part of this schema-validated
