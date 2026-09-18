@@ -15,7 +15,7 @@ use crate::errors::FaLocalResult;
 pub use shard_dispatch::{
     AUTHORIZED_WORKER_TYPES, CortexSubprocessGnatShardAdapter,
     CortexSubprocessGnatShardAdapterConfig, GnatShardDeliveryAdapter, GnatShardDispatchRequest,
-    GnatShardDispatchResult, GnatSourceFingerprint,
+    GnatShardDispatchResult, GnatShardEnrichment, GnatSourceFingerprint,
 };
 
 #[derive(Debug, Default)]
