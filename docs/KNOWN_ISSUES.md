@@ -228,3 +228,46 @@ Local service, `--forensic-sqlite`) and confirmed it now truncates, records, and
 `tests/neuronforge_dispatch_pipeline_service.rs`. Worth checking for the same byte-vs-codepoint
 mismatch in any future forensic-event-style contract that pairs a JSON Schema `maxLength` with a
 truncate-then-validate pipeline step -- the schema's own unit is codepoints, not bytes.
+
+---
+
+## KI-FLO-20260918-006 — ROADMAP item 3 (persistence layer) has no live gap to solve while item 2 (daemon) is unauthorized
+
+**Date found:** 2026-09-18
+**Status:** closed (scoping finding, not a code defect; recorded so the roadmap item isn't
+re-opened as if it were independently actionable)
+
+**What is wrong:** `ROADMAP.md`'s item 3, "a persistence layer beyond forensic evidence (e.g.
+durable policy/capability/execution state across restarts)," reads as an independently
+actionable open item. It is not: there is currently no running FA Local process whose state
+could be lost across a restart to justify one.
+
+**Root cause:** FA Local is a CLI binary, not a daemon. Every invocation
+(`fa-local-run route`/`execute`/`gnat-dispatch`/`neuronforge-dispatch`) takes its policy,
+capability-registry, and requester-trust inputs as file arguments and exits; there is no
+in-memory server state between invocations. Item 3 implicitly presumes item 2 (a daemon or
+networked API surface) already exists, but item 2 is itself unauthorized -- checked both
+`forge-local-runtime` (the accepted doctrine repo) and an extensive Google Drive research-corpus
+review, and found zero precedent or analysis proposing FA Local gain an inbound daemon/HTTP
+surface.
+
+Separately, `forge-local-runtime`'s accepted boundary doctrine (`BOUNDARIES.md`,
+`ARCHITECTURE.md`, `DECISIONS/0005-falocal-boundary.md`, Status: Accepted) already settles *who*
+would own durable state if this ever becomes real: FA Local's own "does not own" list explicitly
+names "hidden persistence authority," and DF Local Foundation (`dataforge-Local` in this
+ecosystem) is the accepted owner of "local database lifecycle, migrations, backup/restore/export
+doctrine... bounded recovery and integrity support." Checked DataForge Local's actual API
+surface (`standalone/dataforge-Local`, synced to `origin/master`) for a reusable pattern: its
+only FA-Local-facing route, `POST /api/v1/execution-bridge/status-events` (Phase X4, the same
+route `DfLocalAdapter::post_execution_status_event` already POSTs to), is write-only staging with
+no read-back surface, and its own docstring says it was never meant to be one ("performs storage
+mechanics only... does not re-derive or second-guess FA Local's own execution semantics").
+
+**Fix:** N/A -- not a defect. `ROADMAP.md` item 3 rewritten to state explicitly that it is
+blocked on item 2 and not independently actionable, and to record the ownership answer
+(DF Local Foundation, not FA Local) so a future session doesn't have to re-derive it.
+
+**Scope:** closed for this scoping question. If item 2 (the daemon) is ever separately
+authorized, item 3 should be re-opened as its own concrete proposal at that point, informed by
+whatever state a running FA Local process actually turns out to need -- not drafted speculatively
+ahead of that decision.
