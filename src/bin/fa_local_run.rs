@@ -512,7 +512,7 @@ fn main() {
             println!("  \"execution_enabled\": {},", facts.execution_enabled);
             println!("  \"writeback_wired\": {},", facts.writeback_wired);
             println!(
-                "  \"note\": \"bounded local execution consumer — execution enabled; DataForge Local writeback pending Phase X4 wiring\""
+                "  \"note\": \"bounded local execution consumer — execution enabled; DataForge Local writeback wired (Phase X4)\""
             );
             println!("}}");
             process::exit(0);

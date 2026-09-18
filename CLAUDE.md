@@ -8,7 +8,7 @@ fa-local-operator (FLO) is the governed local execution operator for Forge appli
 
 **Not `forge-fa-local`.** Same brand, two families: this repo is the business-side backend/ecosystem execution boundary; `apps/public-app-local-support/forge-fa-local` is the unrelated public-app support variant. Path decides which one owns the behavior.
 
-Current status: bounded baseline delivered, not a scaffold. Schema-backed contracts, requester-trust/policy/capability admission, approval-posture resolution, bounded execution-plan validation, a capability-scoped `AdapterRegistry` for multi-adapter and per-step dispatch, JSONL and SQLite forensic export, and a CLI (`route`, `execute`, `forensics-query`, `validate`, `status`) all exist and are tested. Still genuinely not delivered: broad cross-service adapter integrations, declared-fallback coordination across steps dispatched to different adapters, a daemon/API surface, and persistence beyond forensic evidence — see `doc/system/00_overview/01-overview-charter.md`, the canonical current-baseline reference (`ROADMAP.md` and the other root pointer files predate this and are being superseded by it).
+Current status: bounded baseline delivered, not a scaffold. Schema-backed contracts, requester-trust/policy/capability admission, approval-posture resolution, bounded execution-plan validation, a capability-scoped `AdapterRegistry` for multi-adapter and per-step dispatch, JSONL and SQLite forensic export, a DataForge Local execution-bridge writeback path (Phase X4 — `DfLocalAdapter::post_execution_status_event`), and a CLI (`route`, `execute`, `forensics-query`, `validate`, `status`, `canonical-status`) all exist and are tested. Still genuinely not delivered: broad cross-service adapter integrations, declared-fallback coordination across steps dispatched to different adapters, a daemon/API surface, and persistence beyond forensic evidence — see `doc/system/00_overview/01-overview-charter.md`, the canonical current-baseline reference (`ROADMAP.md` and the other root pointer files predate this and are being superseded by it).
 
 ## Common Commands
 
@@ -24,7 +24,7 @@ The crate is structured inside-out:
 - `domain/` — core vocabulary and pure decision primitives
 - `app/` — orchestration services that compose domain logic without absorbing policy authority (`decision_service`, `execution_pipeline_service`, `execution_service`, `routing_service`, `forensic_service`, `review_service`, `intake_service`)
 - `adapters/` — storage, schema, clock, hashing, and export boundaries (`execution_delivery/` adapters + `AdapterRegistry`; `exports/` JSONL and SQLite forensic sinks)
-- `integrations/` — keeps Cortex, NeuronForge Local, and DF Local behind explicit contracts (still stub-only pending Phase X4 on the DataForge Local side)
+- `integrations/` — keeps Cortex, NeuronForge Local, and DF Local behind explicit contracts. DF Local's execution-bridge writeback (Phase X4) is wired: `DfLocalAdapter::post_execution_status_event` POSTs a real `execution_status_event.v1` artifact to DataForge Local's `/api/v1/execution-bridge/status-events` (`dataforge-Local#35`). Cortex and NeuronForge Local integrations remain behind their own separate, not-yet-wired contracts.
 
 FLO is the validating dispatcher of the local plane: **it validates plans and dispatches; it does not extract or prepare** (that is COR's job), and it is not a general-purpose executor.
 

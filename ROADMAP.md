@@ -25,11 +25,16 @@ Delivered since the list below was last trimmed:
   `CompletedWithConstraints`/`degraded_fallback_limited` (never `DegradedFallbackEquivalent`, since
   the coordinator cannot verify two different capabilities are truly equivalent) rather than a
   plain `Completed`.
+- The DataForge Local `execution_status_event` staging endpoint (`dataforge-Local#35`) and this
+  repo's writeback wiring (`DfLocalAdapter::post_execution_status_event`,
+  `src/integrations/df_local/mod.rs` — DataForge Local's Phase X4). `domain::service_status`'s
+  `writeback_wired` fact now reads `true`, and the FC-LTA-P007 canonical status projection reports
+  `state: "ready"` accordingly.
 
 Not yet delivered, in no particular priority order:
 
 1. Broad cross-service adapter integrations (adapters that reach real peer services — Cortex,
-   NeuronForge-Local, DF Local — instead of local-only delivery). The Cortex Gnat proving slice
+   NeuronForge-Local — instead of local-only delivery). The Cortex Gnat proving slice
    is delivered end to end and live-verified against the real COR checkout: (COR repo)
    `cortex_runtime/gnats/shard_cli.py`, a bounded, spawnable single-shard CLI entry point;
    (this repo) `integrations::cortex::CortexSubprocessGnatShardAdapter`, which spawns it and
@@ -45,11 +50,10 @@ Not yet delivered, in no particular priority order:
    negotiation-time envelope's shard summary) to a full runnable `GnatShardDispatchRequest` (the
    caller must supply the complete shard descriptor, including real `local_path`, directly —
    `gnat-dispatch` only checks the two are consistent, never derives one from the other); no
-   deadline/timeout enforcement on the subprocess call. NeuronForge-Local and DF-Local
-   integrations remain unstarted (DF Local is its own separate item below).
+   deadline/timeout enforcement on the subprocess call. NeuronForge-Local integration remains
+   unstarted. DF-Local's execution-bridge writeback is delivered (above); other DF-Local
+   integration surfaces remain unstarted.
 2. A daemon or networked API surface (FA Local stays a CLI binary with no HTTP surface by
    doctrine; this would need an explicit, separately-authorized architectural decision).
 3. A persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state
    across restarts).
-4. The DataForge Local `execution_status_event` staging endpoint and writeback wiring
-   (`src/integrations/df_local/mod.rs`; DataForge Local's Phase X4, not this repo's).

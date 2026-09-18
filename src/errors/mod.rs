@@ -32,4 +32,7 @@ pub enum FaLocalError {
 
     #[error("writeback not yet wired: {0}")]
     WritebackNotWired(String),
+
+    #[error("writeback failed: {0}")]
+    WritebackFailed(String),
 }
