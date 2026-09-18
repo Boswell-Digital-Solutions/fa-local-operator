@@ -94,7 +94,12 @@ Not yet delivered, in no particular priority order:
    run still completes. A first NeuronForge-Local proving slice (task dispatch to
    `analyze.style.scene.v1`, forensic recording and export sinks, above) and DF-Local's
    execution-bridge writeback (above) are both delivered; no further NeuronForge-Local task is
-   admitted beyond the one `ADR-002` names.
+   admitted beyond the one `ADR-002` names -- investigated, not just unstarted:
+   `BDS-FAL-NFL-ADMISSION-v0.1`'s CP0/WP00 (2026-09-18, Drive plan set) inventoried
+   NeuronForge-Local's task surface and found two technically-admissible candidates
+   (`drift-analysis`, `analyze.continuity.adjacent_scene.v1`) but no FA-Local-side consumer or
+   demonstrated need for either, so GATE-00 closed with "no next task admission justified" rather
+   than selecting one (`KI-FLO-20260918-007`).
 2. A daemon or networked API surface (FA Local stays a CLI binary with no HTTP surface by
    doctrine; this would need an explicit, separately-authorized architectural decision).
 3. A persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state
