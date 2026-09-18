@@ -1,0 +1,12 @@
+{
+  "forensic_event_id": "f2f2f2f2-f2f2-4ff2-8ff2-f2f2f2f2f2f2",
+  "dispatch_id": "fa-local-dispatch-fixture-002",
+  "request_id": "fa-local-request-fixture-002",
+  "task_id": "analyze.style.scene.v1",
+  "outcome": "dispatch_unavailable",
+  "receipt_validation_status": null,
+  "timestamp_utc": "2030-01-01T00:10:01Z",
+  "summary": "could not reach NeuronForge Local",
+  "redaction_level": "linkage_only",
+  "payload_minimized": true
+}

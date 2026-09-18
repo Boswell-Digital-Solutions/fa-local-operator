@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FA Local NeuronForge Task Dispatch Forensic Event",
+  "description": "Minimal, bounded, auditable forensic event contract for FA Local's NeuronForge Local task-dispatch truth -- a separate contract from forensic-event.schema.json because a NeuronForge-Local dispatch has no route_decision_id, execution_plan_id, or ApprovalPosture/ExecutionState of its own, matching how gnat-dispatch-forensic-event.schema.json already gets its own schema for the same reason.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "forensic_event_id",
+    "dispatch_id",
+    "request_id",
+    "task_id",
+    "outcome",
+    "receipt_validation_status",
+    "timestamp_utc",
+    "summary",
+    "redaction_level",
+    "payload_minimized"
+  ],
+  "properties": {
+    "forensic_event_id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "dispatch_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "outcome": {
+      "$ref": "#/$defs/outcome"
+    },
+    "receipt_validation_status": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/receipt_validation_status"
+        }
+      ]
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "redaction_level": {
+      "$ref": "#/$defs/redaction_level"
+    },
+    "payload_minimized": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "not_completed",
+        "dispatch_unavailable"
+      ]
+    },
+    "receipt_validation_status": {
+      "type": "string",
+      "enum": [
+        "valid",
+        "degraded",
+        "failed"
+      ]
+    },
+    "redaction_level": {
+      "type": "string",
+      "enum": [
+        "none",
+        "sensitive_fields_redacted",
+        "linkage_only"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "dispatch_unavailable"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "receipt_validation_status": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "completed"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "receipt_validation_status": {
+            "const": "valid"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "not_completed"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "receipt_validation_status": {
+            "enum": [
+              "degraded",
+              "failed"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
