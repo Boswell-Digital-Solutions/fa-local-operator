@@ -9,7 +9,7 @@ is reported as new, and written in the same session it is found.
 ## KI-FLO-20260918-001 — `operational_facts().execution_enabled` is hardcoded `false`, now stale
 
 **Date found:** 2026-09-18
-**Status:** open
+**Status:** closed (fixed same session)
 
 **What is wrong:** `domain::service_status::operational_facts()`
 (`src/domain/service_status/mod.rs`) unconditionally returns
@@ -25,22 +25,23 @@ shipping `ExecutionPipelineService`, `AdapterRegistry`-backed dispatch, and JSON
 export (PRs #5–#11 on `fa-local-operator`), but `operational_facts()` itself was never revisited
 to match. It is now a stale hardcoded value, not a true structural fact.
 
-**Fix, if any:** Not fixed in this pass — this was found while refreshing `doc/system/` and the
-root docs for session handoff, not while doing execution-pipeline work, and changing what
-`execution_enabled` means (and what `canonical-status` should report once it can be `true`) is a
-real design decision — e.g. whether it should reflect "the `execute` subcommand exists" versus
-"at least one adapter is registered and reachable" versus something else — that deserves its own
-reviewed change, consistent with how every other capability this session shipped as its own PR.
-`build_canonical_service_status_envelope()` already fails loudly (`FaLocalError::InternalInvariant`)
-if `operational_facts()` ever reports a combination it has no honest envelope for, so flipping
-`execution_enabled` to `true` without also updating the envelope logic will crash that function
-rather than silently emitting a wrong-but-plausible status — the next session picking this up
-should treat that as the forcing function, not an obstacle.
+**Fix:** `execution_enabled` is now `true` — the same kind of structural, code-presence fact it
+always was, not a runtime probe: `fa-local-run execute` exists and dispatches admitted plans
+through the `AdapterRegistry`, so there is no longer an absence of code to justify `false`.
+`build_canonical_service_status_envelope()` was updated in the same change (it would otherwise
+have hit its own `InternalInvariant` fail-loud guard the moment `execution_enabled` flipped): with
+`execution_enabled: true` and `writeback_wired: false`, it now reports `state: "degraded"` /
+`degraded_subtype: "unavailable_dependency_block"` — core validation and dispatch work, but
+forensic status events cannot be staged to DataForge Local because its Phase X4 endpoint does not
+exist yet. The guard clause itself was kept (inverted to match the new valid combination) so a
+future change that also flips `writeback_wired` to `true` still fails loudly instead of silently
+carrying forward this message. Also updated the plain `status` subcommand's `note` string, which
+made the same "execution bridge ... pending Phase X4" claim.
 
-**Scope:** open. Affects `src/domain/service_status/mod.rs`, the `status` and `canonical-status`
-CLI subcommands, and Forge_Command's FC-LTA-P007 read of FA Local's projected state. Does not
-affect `writeback_wired: false`, which remains accurate (DataForge Local's Phase X4 staging
-endpoint still does not exist).
+**Scope:** closed. Changed `src/domain/service_status/mod.rs` (`operational_facts()`,
+`build_canonical_service_status_envelope()`, its doc comments, and its three unit tests) and the
+`status` subcommand's note string in `src/bin/fa_local_run.rs`. `writeback_wired: false` is
+unchanged and remains accurate (DataForge Local's Phase X4 staging endpoint still does not exist).
 
 ---
 

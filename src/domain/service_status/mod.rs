@@ -57,9 +57,10 @@ fn denial_state_schema_path() -> PathBuf {
 
 /// The real, structural facts about FA Local's own operational surface.
 ///
-/// Both are `false` today because of the *absence* of code, not a runtime
-/// probe: no `execute` subcommand exists in `fa-local-run`
-/// (`src/bin/fa_local_run.rs`), and
+/// Both are structural facts about *code presence*, not runtime probes:
+/// `execution_enabled` is `true` because `fa-local-run execute` exists and
+/// dispatches admitted plans through the `AdapterRegistry`
+/// (`src/bin/fa_local_run.rs`); `writeback_wired` stays `false` because
 /// `DfLocalAdapter::post_execution_status_event`
 /// (`src/integrations/df_local/mod.rs`) unconditionally returns
 /// `FaLocalError::WritebackNotWired` until DataForge Local's Phase X4
@@ -73,7 +74,7 @@ pub struct FaLocalOperationalFacts {
 
 pub fn operational_facts() -> FaLocalOperationalFacts {
     FaLocalOperationalFacts {
-        execution_enabled: false,
+        execution_enabled: true,
         writeback_wired: false,
     }
 }
@@ -82,20 +83,22 @@ pub fn operational_facts() -> FaLocalOperationalFacts {
 /// `service-status.schema.json` envelope.
 ///
 /// Never invents a signal: the only two real facts FA Local can currently
-/// report about itself are `execution_enabled: false` and
+/// report about itself are `execution_enabled: true` and
 /// `writeback_wired: false`, so this reports the one honest state that
-/// follows from them (`degraded` / `degraded_pre_start` -- the execution
-/// bridge has not started, not that something running has failed). It never
-/// carries forward the old `status` output's fabricated
+/// follows from them (`degraded` / `unavailable_dependency_block` -- core
+/// validation and dispatch work, but forensic status events cannot be
+/// staged to DataForge Local because its Phase X4 endpoint does not exist
+/// yet). It never carries forward the old `status` output's fabricated
 /// `posture: "policy_first_admission"` string, which was not derived from
 /// any real check.
 pub fn build_canonical_service_status_envelope() -> FaLocalResult<Value> {
     let facts = operational_facts();
 
-    if facts.execution_enabled || facts.writeback_wired {
-        // Not reachable today -- both facts are `false` -- but if either
-        // ever flips independently, fail loudly rather than silently
-        // reporting the fully-degraded message as if nothing changed.
+    if !facts.execution_enabled || facts.writeback_wired {
+        // Not reachable today -- operational_facts() reports
+        // execution_enabled: true, writeback_wired: false -- but if either
+        // ever flips again, fail loudly rather than silently reporting this
+        // envelope as if nothing changed.
         return Err(FaLocalError::InternalInvariant(
             "operational_facts() reported a combination \
              build_canonical_service_status_envelope has no honest envelope for yet -- \
@@ -105,9 +108,10 @@ pub fn build_canonical_service_status_envelope() -> FaLocalResult<Value> {
     }
 
     let state = "degraded";
-    let message = "FA Local validates execution requests, but the execution bridge is not yet \
-         wired: dispatch is not enabled and DataForge Local writeback has no endpoint yet.";
-    let degraded_subtype = serde_json::to_value(DegradedSubtype::DegradedPreStart)?;
+    let message = "FA Local validates and dispatches execution requests, but DataForge Local \
+         writeback has no endpoint yet: forensic status events are recorded locally and not \
+         staged to DataForge Local.";
+    let degraded_subtype = serde_json::to_value(DegradedSubtype::UnavailableDependencyBlock)?;
 
     let envelope = json!({
         "service_id": SERVICE_ID,
@@ -169,7 +173,7 @@ mod tests {
         assert_eq!(envelope["service_id"], "fa-local");
         assert_eq!(envelope["service_class"], "execution");
         assert_eq!(envelope["state"], "degraded");
-        assert_eq!(envelope["degraded_subtype"], "degraded_pre_start");
+        assert_eq!(envelope["degraded_subtype"], "unavailable_dependency_block");
     }
 
     #[test]
@@ -185,13 +189,13 @@ mod tests {
     #[test]
     fn envelope_reflects_the_real_operational_facts_in_its_message() {
         let facts = operational_facts();
-        assert!(!facts.execution_enabled);
+        assert!(facts.execution_enabled);
         assert!(!facts.writeback_wired);
 
         let envelope = build_canonical_service_status_envelope().expect("envelope should build");
         let message = envelope["operator_visible_message"]
             .as_str()
             .expect("message is a string");
-        assert!(message.contains("execution bridge"));
+        assert!(message.contains("DataForge Local"));
     }
 }
