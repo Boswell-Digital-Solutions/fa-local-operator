@@ -180,3 +180,51 @@ in the same run still completes.
 `src/integrations/cortex/shard_dispatch.rs`. Worth remembering for any other local-plane tooling
 in this ecosystem that shells out to `kill` (or any external signal-delivery binary) for
 process-group management on this class of dev machine -- prefer a direct `libc` syscall.
+
+---
+
+## KI-FLO-20260918-005 — forensic-event `summary` validation checked byte length against a char-count-truncated string
+
+**Date found:** 2026-09-18
+**Status:** closed (fixed same session)
+
+**What is wrong:** `GnatDispatchForensicEvent::validate()` (`src/integrations/cortex/forensics.rs`)
+and `NeuronForgeTaskDispatchForensicEvent::validate()` (`src/integrations/neuronforge_local/forensics.rs`)
+both rejected `summary` strings that their own pipeline's `bounded_summary()` helper
+(`src/app/gnat_dispatch_pipeline_service.rs`, `src/app/neuronforge_dispatch_pipeline_service.rs`)
+had already truncated to fit. Found live-testing `fa-local-run neuronforge-dispatch` against a
+stopped NeuronForge Local service: the real `ureq` connection-refused message (well over 160
+characters) was truncated by `bounded_summary()` as designed, but the resulting event still
+failed to validate, turning a truthful `dispatch_unavailable` outcome into a hard `FaLocalResult`
+error instead -- the whole run failed closed on recording its own degraded-but-real outcome.
+
+**Root cause:** `bounded_summary()` truncates by Unicode *character* count --
+`text.chars().take(159).collect()` plus one trailing `'…'` character, exactly 160 codepoints --
+matching the JSON Schema `maxLength: 160` constraint on `summary` in both
+`schemas/gnat-dispatch-forensic-event.schema.json` and
+`schemas/neuronforge-task-dispatch-forensic-event.schema.json` (JSON Schema's `maxLength` is
+Unicode-codepoint-based per spec, confirmed independently against Python's `jsonschema` library).
+Both `validate()` methods instead checked `self.summary.len() > 160` -- Rust's `String::len()` is
+*byte* length, not char count. `'…'` (U+2026) alone encodes to 3 UTF-8 bytes, so any ASCII text
+truncated to exactly 159 chars plus the ellipsis is 160 codepoints but 162 bytes: the schema
+(codepoint-based) accepts it, the Rust check (byte-based) rejected it. This bug existed in the
+already-merged Gnat forensic-event code (PR #21) from the start -- it happened to never trigger
+there because every `dispatch_unavailable` summary Gnat's own code produces stayed under the
+byte/char threshold in practice, so it went undetected until a genuinely long real-world message
+(a `ureq` transport error, not a synthetic test string) exercised it for the first time.
+
+**Fix:** Both `validate()` methods now check `self.summary.chars().count() > 160` instead of
+`self.summary.len() > 160`, matching the JSON Schema's own codepoint-based semantics and
+`bounded_summary()`'s truncation unit. Added a regression test to each pipeline-service test file
+(`tests/gnat_dispatch_pipeline_service.rs`, `tests/neuronforge_dispatch_pipeline_service.rs`)
+reproducing the exact failure with a 300-character all-ASCII `DispatchUnavailable` summary and
+asserting the recorded event's `summary` is exactly 160 codepoints and validates. Re-ran the
+originally-failing live scenario (`fa-local-run neuronforge-dispatch` against a stopped NeuronForge
+Local service, `--forensic-sqlite`) and confirmed it now truncates, records, and exports correctly
+(`exit=1`, truthful `dispatch_unavailable`, not a hard error).
+
+**Scope:** closed. Changed `src/integrations/cortex/forensics.rs`,
+`src/integrations/neuronforge_local/forensics.rs`, `tests/gnat_dispatch_pipeline_service.rs`, and
+`tests/neuronforge_dispatch_pipeline_service.rs`. Worth checking for the same byte-vs-codepoint
+mismatch in any future forensic-event-style contract that pairs a JSON Schema `maxLength` with a
+truncate-then-validate pipeline step -- the schema's own unit is codepoints, not bytes.

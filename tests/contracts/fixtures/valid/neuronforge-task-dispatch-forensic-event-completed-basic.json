@@ -1,0 +1,12 @@
+{
+  "forensic_event_id": "f1f1f1f1-f1f1-4ff1-8ff1-f1f1f1f1f1f1",
+  "dispatch_id": "fa-local-dispatch-fixture-001",
+  "request_id": "fa-local-request-fixture-001",
+  "task_id": "analyze.style.scene.v1",
+  "outcome": "completed",
+  "receipt_validation_status": "valid",
+  "timestamp_utc": "2030-01-01T00:10:00Z",
+  "summary": "NeuronForge Local dispatch fa-local-dispatch-fixture-001 completed for task analyze.style.scene.v1.",
+  "redaction_level": "linkage_only",
+  "payload_minimized": true
+}

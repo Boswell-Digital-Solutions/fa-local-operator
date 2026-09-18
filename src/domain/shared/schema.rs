@@ -21,10 +21,11 @@ pub enum SchemaName {
     DenialGuard,
     GnatDispatchEnvelope,
     GnatDispatchForensicEvent,
+    NeuronForgeTaskDispatchForensicEvent,
 }
 
 impl SchemaName {
-    pub const ALL: [SchemaName; 13] = [
+    pub const ALL: [SchemaName; 14] = [
         SchemaName::RequesterTrust,
         SchemaName::PolicyArtifact,
         SchemaName::CapabilityRegistry,
@@ -38,6 +39,7 @@ impl SchemaName {
         SchemaName::DenialGuard,
         SchemaName::GnatDispatchEnvelope,
         SchemaName::GnatDispatchForensicEvent,
+        SchemaName::NeuronForgeTaskDispatchForensicEvent,
     ];
 
     pub const fn all() -> &'static [SchemaName] {
@@ -59,6 +61,9 @@ impl SchemaName {
             SchemaName::DenialGuard => "denial-guard",
             SchemaName::GnatDispatchEnvelope => "gnat-dispatch-envelope",
             SchemaName::GnatDispatchForensicEvent => "gnat-dispatch-forensic-event",
+            SchemaName::NeuronForgeTaskDispatchForensicEvent => {
+                "neuronforge-task-dispatch-forensic-event"
+            }
         }
     }
 
@@ -77,6 +82,9 @@ impl SchemaName {
             SchemaName::DenialGuard => "denial-guard.schema.json",
             SchemaName::GnatDispatchEnvelope => "gnat-dispatch-envelope.schema.json",
             SchemaName::GnatDispatchForensicEvent => "gnat-dispatch-forensic-event.schema.json",
+            SchemaName::NeuronForgeTaskDispatchForensicEvent => {
+                "neuronforge-task-dispatch-forensic-event.schema.json"
+            }
         }
     }
 

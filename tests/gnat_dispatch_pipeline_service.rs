@@ -490,3 +490,50 @@ fn a_run_fails_closed_when_the_export_sink_is_unavailable() {
     // Fails closed on the very first event (negotiation) before any shard is dispatched.
     assert_eq!(adapter.calls.load(Ordering::SeqCst), 0);
 }
+
+struct LongSummaryUnavailableGnatShardAdapter;
+
+impl GnatShardDeliveryAdapter for LongSummaryUnavailableGnatShardAdapter {
+    fn adapter_id(&self) -> &'static str {
+        "long-summary-unavailable-gnat-shard-adapter"
+    }
+
+    fn deliver_shard(&self, _request: &GnatShardDispatchRequest) -> GnatShardDispatchResult {
+        // Longer than 160 bytes once bounded_summary's trailing ellipsis
+        // (3 UTF-8 bytes) is appended, but exactly 160 Unicode codepoints --
+        // regression coverage for KI-FLO-20260918-005 (validate() used to
+        // check byte length against a char-count-truncated string).
+        GnatShardDispatchResult::DispatchUnavailable {
+            summary: "x".repeat(300),
+        }
+    }
+}
+
+#[test]
+fn a_long_dispatch_unavailable_summary_is_truncated_and_still_validates() {
+    let envelope = load_basic_envelope();
+    let capabilities = GnatFaLocalCapabilityState::ready_default();
+    let shard_enrichments = basic_enrichments();
+    let adapter = LongSummaryUnavailableGnatShardAdapter;
+
+    let result = GnatDispatchPipelineService
+        .run(
+            &envelope,
+            &capabilities,
+            &shard_enrichments,
+            &adapter,
+            None,
+            ts(),
+        )
+        .unwrap();
+
+    for shard_event in &result.forensic_events[1..] {
+        let event = &shard_event.event.event;
+        assert_eq!(
+            event.shard_outcome,
+            Some(GnatShardOutcome::DispatchUnavailable)
+        );
+        assert_eq!(event.summary.chars().count(), 160);
+        assert!(event.summary.ends_with('…'));
+    }
+}

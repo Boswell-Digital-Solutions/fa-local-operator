@@ -46,10 +46,21 @@ Delivered since the list below was last trimmed:
   neuronforge-dispatch --scene <FILE> [--neuronforge-url <URL>] [--model <ID>]`. Live-verified
   end to end against a real running `neuronforge-local-operator` service and a real local Ollama
   model (`qwen2.5:14b`): a real scene produced a genuine structured style-analysis candidate,
-  `schema_validation_status: "valid"`, every `registry_guardrails` flag `false`. Still open,
-  disclosed rather than silently assumed away: no forensic recording for NeuronForge-Local
-  dispatch runs yet (the same gap Cortex Gnat dispatch had before its own forensic-event
-  contract and export sinks landed).
+  `schema_validation_status: "valid"`, every `registry_guardrails` flag `false`.
+- Forensic recording and JSONL/SQLite export sinks for NeuronForge-Local dispatch runs
+  (`integrations::neuronforge_local::NeuronForgeTaskDispatchForensicEvent`,
+  `schemas/neuronforge-task-dispatch-forensic-event.schema.json`,
+  `NeuronForgeDispatchPipelineService`), closing the gap Cortex Gnat dispatch also had before
+  its own forensic-event contract and export sinks landed. One dispatch run records exactly one
+  event (no separate negotiation phase, unlike Gnat). Exposed as `fa-local-run
+  neuronforge-dispatch --forensic-export <FILE>|--forensic-sqlite <FILE>`. Live-testing this
+  found and fixed a real bug (`KI-FLO-20260918-005`): `summary` validation checked byte length
+  against a string the pipeline's own truncation helper had already bounded by Unicode character
+  count, so a real, long `ureq` connection-refused message failed closed instead of recording
+  truthfully — the same latent bug existed in the already-merged Gnat forensic-event validation
+  too and is now fixed in both. Live-verified end to end, both outcomes: a real completed
+  dispatch and a real `dispatch_unavailable` (service stopped) both recorded and exported
+  correctly via `--forensic-sqlite`.
 
 Not yet delivered, in no particular priority order:
 
@@ -81,9 +92,9 @@ Not yet delivered, in no particular priority order:
    `stale` through the same real subprocess calls (exit 1); an unrealistically tight deadline on
    one shard against the real COR checkout is killed promptly while a sibling shard in the same
    run still completes. A first NeuronForge-Local proving slice (task dispatch to
-   `analyze.style.scene.v1`, above) and DF-Local's execution-bridge writeback (above) are both
-   delivered; NeuronForge-Local dispatch still has no forensic recording, and no further
-   NeuronForge-Local task is admitted beyond the one `ADR-002` names.
+   `analyze.style.scene.v1`, forensic recording and export sinks, above) and DF-Local's
+   execution-bridge writeback (above) are both delivered; no further NeuronForge-Local task is
+   admitted beyond the one `ADR-002` names.
 2. A daemon or networked API surface (FA Local stays a CLI binary with no HTTP surface by
    doctrine; this would need an explicit, separately-authorized architectural decision).
 3. A persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state

@@ -75,6 +75,11 @@ enum GnatForensicSink {
     Sqlite(fa_local::integrations::cortex::SqliteGnatForensicStore),
 }
 
+enum NeuronForgeForensicSink {
+    Jsonl(fa_local::integrations::neuronforge_local::JsonlNeuronForgeForensicExportAdapter),
+    Sqlite(fa_local::integrations::neuronforge_local::SqliteNeuronForgeForensicStore),
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
@@ -549,10 +554,13 @@ fn main() {
         }
 
         Some("neuronforge-dispatch") => {
+            use fa_local::app::neuronforge_dispatch_pipeline_service::NeuronForgeDispatchPipelineService;
             use fa_local::integrations::neuronforge_local::{
                 ADMITTED_TASK_ID, HttpNeuronForgeLocalAdapter, HttpNeuronForgeLocalAdapterConfig,
-                ModelResourceDisclosure, NeuronForgeTaskDeliveryAdapter,
+                JsonlNeuronForgeForensicExportAdapter, JsonlNeuronForgeForensicExportAdapterConfig,
+                ModelResourceDisclosure, NeuronForgeForensicEventExportAdapter,
                 NeuronForgeTaskDispatchRequest, NeuronForgeTaskDispatchResult,
+                SqliteNeuronForgeForensicStore,
             };
 
             let flag_path = |flag: &str| -> Option<&str> {
@@ -572,6 +580,42 @@ fn main() {
                 eprintln!("error: could not read --scene {scene_path:?}: {e}");
                 process::exit(1);
             });
+
+            let neuronforge_forensic_export_path = flag_path("--forensic-export");
+            let neuronforge_forensic_sqlite_path = flag_path("--forensic-sqlite");
+            let neuronforge_forensic_sink = match (
+                neuronforge_forensic_export_path,
+                neuronforge_forensic_sqlite_path,
+            ) {
+                (Some(_), Some(_)) => {
+                    eprintln!(
+                        "error: --forensic-export and --forensic-sqlite are mutually exclusive"
+                    );
+                    process::exit(1);
+                }
+                (Some(path), None) => Some(NeuronForgeForensicSink::Jsonl(
+                    JsonlNeuronForgeForensicExportAdapter::new(
+                        JsonlNeuronForgeForensicExportAdapterConfig::new(path.into()),
+                    ),
+                )),
+                (None, Some(path)) => Some(NeuronForgeForensicSink::Sqlite(
+                    SqliteNeuronForgeForensicStore::open(std::path::Path::new(path))
+                        .unwrap_or_else(|e| {
+                            eprintln!(
+                                "error: could not open neuronforge forensic sqlite store {path:?}: {e}"
+                            );
+                            process::exit(1);
+                        }),
+                )),
+                (None, None) => None,
+            };
+            let neuronforge_forensic_export_adapter: Option<
+                &dyn NeuronForgeForensicEventExportAdapter,
+            > = match &neuronforge_forensic_sink {
+                Some(NeuronForgeForensicSink::Jsonl(adapter)) => Some(adapter),
+                Some(NeuronForgeForensicSink::Sqlite(store)) => Some(store),
+                None => None,
+            };
 
             let adapter = HttpNeuronForgeLocalAdapter::new(HttpNeuronForgeLocalAdapterConfig::new(
                 neuronforge_url,
@@ -594,26 +638,46 @@ fn main() {
                         .to_owned(),
             };
 
-            let result = adapter.dispatch_task(&request);
-            let (output, exit_code) = match result {
-                NeuronForgeTaskDispatchResult::Completed { receipt } => (
-                    serde_json::json!({ "outcome": "completed", "receipt": receipt }),
-                    0,
-                ),
-                NeuronForgeTaskDispatchResult::NotCompleted { receipt } => (
-                    serde_json::json!({ "outcome": "not_completed", "receipt": receipt }),
-                    1,
-                ),
-                NeuronForgeTaskDispatchResult::DispatchUnavailable { summary } => (
-                    serde_json::json!({ "outcome": "dispatch_unavailable", "summary": summary }),
-                    1,
-                ),
-            };
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&output).expect("output serializes")
-            );
-            process::exit(exit_code);
+            match NeuronForgeDispatchPipelineService.run(
+                &request,
+                &adapter,
+                neuronforge_forensic_export_adapter,
+                fa_local::domain::shared::now_utc(),
+            ) {
+                Ok(result) => {
+                    let forensic_event_json = serde_json::json!({
+                        "event": result.forensic_record.event.event,
+                        "export_reference": result.forensic_record.export_reference,
+                    });
+                    let (mut output, exit_code) = match result.outcome {
+                        NeuronForgeTaskDispatchResult::Completed { receipt } => (
+                            serde_json::json!({ "outcome": "completed", "receipt": receipt }),
+                            0,
+                        ),
+                        NeuronForgeTaskDispatchResult::NotCompleted { receipt } => (
+                            serde_json::json!({ "outcome": "not_completed", "receipt": receipt }),
+                            1,
+                        ),
+                        NeuronForgeTaskDispatchResult::DispatchUnavailable { summary } => (
+                            serde_json::json!({ "outcome": "dispatch_unavailable", "summary": summary }),
+                            1,
+                        ),
+                    };
+                    output["forensic_event"] = forensic_event_json;
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&output).expect("output serializes")
+                    );
+                    process::exit(exit_code);
+                }
+                Err(e) => {
+                    eprintln!("{{");
+                    eprintln!("  \"status\": \"error\",");
+                    eprintln!("  \"error\": \"{e}\"");
+                    eprintln!("}}");
+                    process::exit(1);
+                }
+            }
         }
 
         Some("status") => {
@@ -782,6 +846,12 @@ fn main() {
             );
             eprintln!(
                 "  --model <ID>                 Ollama model id to request (default: qwen2.5:14b, this repo's documented baseline)"
+            );
+            eprintln!(
+                "  --forensic-export <FILE>     Also append the recorded forensic event to this JSONL file (mutually exclusive with --forensic-sqlite)"
+            );
+            eprintln!(
+                "  --forensic-sqlite <FILE>     Also record the forensic event into a queryable SQLite store (mutually exclusive with --forensic-export)"
             );
             eprintln!("");
             eprintln!("EXIT CODES:");

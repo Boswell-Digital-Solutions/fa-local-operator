@@ -24,11 +24,24 @@
 //! it *serves*) -- the same `ureq`-based pattern `integrations::df_local`
 //! already uses against DataForge Local.
 
+pub mod forensic_export;
+pub mod forensics;
+
 use std::env;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+pub use forensic_export::{
+    JsonlNeuronForgeForensicExportAdapter, JsonlNeuronForgeForensicExportAdapterConfig,
+    NeuronForgeForensicEventExportAdapter, SqliteNeuronForgeForensicStore,
+};
+pub use forensics::{
+    NeuronForgeDispatchOutcome, NeuronForgeForensicRedactionLevel,
+    NeuronForgeReceiptValidationStatus, NeuronForgeTaskDispatchForensicEvent,
+    ValidatedNeuronForgeTaskDispatchForensicEvent,
+};
 
 /// The one task [`ADR-002`](self) admits for FA-Local-initiated dispatch.
 /// Checked before ever making a network call, not left for NeuronForge

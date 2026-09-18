@@ -128,7 +128,13 @@ impl GnatDispatchForensicEvent {
     }
 
     pub fn validate(&self) -> FaLocalResult<()> {
-        if self.summary.is_empty() || self.summary.len() > 160 {
+        // Char count, not byte length: `summary`'s JSON Schema `maxLength`
+        // is Unicode-codepoint-based per spec, and `bounded_summary()`
+        // (the pipeline's own truncation helper) already truncates by char
+        // count -- a byte-length check here rejects its own output for any
+        // truncated text containing multi-byte characters (its trailing
+        // ellipsis alone is 3 bytes), see `KI-FLO-20260918-005`.
+        if self.summary.is_empty() || self.summary.chars().count() > 160 {
             return Err(contract_invalid(
                 "gnat dispatch forensic event summary must be between 1 and 160 characters",
             ));
