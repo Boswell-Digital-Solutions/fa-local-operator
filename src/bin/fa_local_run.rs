@@ -441,8 +441,8 @@ fn main() {
                 eprintln!("error: gnat-dispatch requires --envelope");
                 process::exit(1);
             });
-            let shards_path = flag_path("--shards").unwrap_or_else(|| {
-                eprintln!("error: gnat-dispatch requires --shards");
+            let shard_enrichment_path = flag_path("--shard-enrichment").unwrap_or_else(|| {
+                eprintln!("error: gnat-dispatch requires --shard-enrichment");
                 process::exit(1);
             });
             let cortex_repo_root = flag_path("--cortex-repo-root").unwrap_or_else(|| {
@@ -461,12 +461,14 @@ fn main() {
                     process::exit(1);
                 });
 
-            let shards_value = read_json_file(shards_path);
-            let shard_requests: Vec<fa_local::integrations::cortex::GnatShardDispatchRequest> =
-                serde_json::from_value(shards_value).unwrap_or_else(|e| {
-                    eprintln!("error: invalid --shards: {e}");
-                    process::exit(1);
-                });
+            let shard_enrichment_value = read_json_file(shard_enrichment_path);
+            let shard_enrichments: std::collections::HashMap<
+                String,
+                fa_local::integrations::cortex::GnatShardEnrichment,
+            > = serde_json::from_value(shard_enrichment_value).unwrap_or_else(|e| {
+                eprintln!("error: invalid --shard-enrichment: {e}");
+                process::exit(1);
+            });
 
             // Hardcoded rather than CLI-configurable: there is no persistent
             // Gnat-capability config yet, so this proving slice always
@@ -483,7 +485,7 @@ fn main() {
             match fa_local::app::gnat_dispatch_pipeline_service::GnatDispatchPipelineService.run(
                 &envelope,
                 &capabilities,
-                &shard_requests,
+                &shard_enrichments,
                 &adapter,
             ) {
                 Ok(outcome) => {
@@ -629,16 +631,19 @@ fn main() {
                 "  --envelope <FILE>            A GnatDispatchEnvelope.v1 JSON file (Cortex-constructed)"
             );
             eprintln!(
-                "  --shards <FILE>              A JSON array of full shard descriptors, one per shard declared in the envelope --"
+                "  --shard-enrichment <FILE>    A JSON object keyed by shard_id, one entry per shard declared in the envelope --"
             );
             eprintln!(
-                "                               each needs every GnatShard.v1 field plus local_path, which the envelope"
+                "                               each entry supplies exactly what the envelope's own shard summary never"
             );
             eprintln!(
-                "                               deliberately never carries; every descriptor must agree with the"
+                "                               carries: source_path_token, media_type, fingerprint_algorithm,"
             );
             eprintln!(
-                "                               envelope's own run_id/shard_id/worker_type/source_ref"
+                "                               fingerprint_byte_count, fingerprint_modified_at, max_bytes, and local_path"
+            );
+            eprintln!(
+                "                               (the real filesystem path, which no schema-validated contract ever carries)"
             );
             eprintln!(
                 "  --cortex-repo-root <DIR>     The Cortex (COR) checkout root -- cortex_runtime.gnats.shard_cli must resolve from here"

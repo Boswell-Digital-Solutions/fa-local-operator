@@ -3,35 +3,29 @@
 //! [`GnatDispatchValidator::negotiate`] only ever decides whether FA Local
 //! *admits* a Cortex-initiated Gnat run; on its own it has no onward path
 //! to actually running a shard. [`GnatDispatchPipelineService::run`] is
-//! that onward path: negotiate, and only when the negotiated posture
-//! actually admits FA-Local-owned dispatch, deliver every declared shard
-//! through a [`GnatShardDeliveryAdapter`] and collect its real outcome.
+//! that onward path: build a full runnable request for every declared
+//! shard (see [`GnatShardDispatchRequest::from_declared_shard`]), negotiate,
+//! and only when the negotiated posture actually admits FA-Local-owned
+//! dispatch, deliver every shard through a [`GnatShardDeliveryAdapter`] and
+//! collect its real outcome.
 //!
-//! Two things this does *not* yet do, both disclosed rather than silently
-//! assumed away:
-//!
-//! - **No forensic recording.** [`ForensicRecordKind`](crate::app::forensic_service::ForensicRecordKind)
-//!   is built entirely around FA Local's own `RouteDecision`/`ExecutionStatus`
-//!   domain, which a Cortex-initiated Gnat run has no equivalent of. Giving
-//!   Gnat dispatch runs the same truthful, append-only forensic trail every
-//!   other admitted path gets needs its own forensic-event contract
-//!   extension, not a bolt-on to this pipeline.
-//! - **No negotiation-to-dispatch bridge.** `GnatDispatchShard` (the
-//!   envelope's own embedded shard summary) lacks `source_path_token`,
-//!   `media_type`, `max_bytes`, and `local_path` -- everything
-//!   [`GnatShardDispatchRequest`] needs beyond what negotiation alone ever
-//!   sees. This pipeline requires the caller to supply the full descriptor
-//!   for every declared shard directly, and only checks that those
-//!   descriptors are consistent with what the envelope actually declared
-//!   (same shard ids, worker types, and source refs) -- it does not derive
-//!   one from the other.
+//! One thing this does *not* yet do, disclosed rather than silently assumed
+//! away: **no forensic recording.**
+//! [`ForensicRecordKind`](crate::app::forensic_service::ForensicRecordKind)
+//! is built entirely around FA Local's own `RouteDecision`/`ExecutionStatus`
+//! domain, which a Cortex-initiated Gnat run has no equivalent of. Giving
+//! Gnat dispatch runs the same truthful, append-only forensic trail every
+//! other admitted path gets needs its own forensic-event contract
+//! extension, not a bolt-on to this pipeline.
+
+use std::collections::HashMap;
 
 use crate::domain::guards::DenialGuard;
 use crate::errors::{FaLocalError, FaLocalResult};
 use crate::integrations::cortex::{
     GnatDispatchAdmission, GnatDispatchAdmissionState, GnatDispatchEnvelope, GnatDispatchValidator,
     GnatFaLocalCapabilityState, GnatShardDeliveryAdapter, GnatShardDispatchRequest,
-    GnatShardDispatchResult,
+    GnatShardDispatchResult, GnatShardEnrichment,
 };
 
 /// The full result of one Gnat dispatch run.
@@ -62,10 +56,10 @@ impl GnatDispatchPipelineService {
         &self,
         envelope: &GnatDispatchEnvelope,
         fa_local_capabilities: &GnatFaLocalCapabilityState,
-        shard_requests: &[GnatShardDispatchRequest],
+        shard_enrichments: &HashMap<String, GnatShardEnrichment>,
         adapter: &dyn GnatShardDeliveryAdapter,
     ) -> FaLocalResult<GnatDispatchRunOutcome> {
-        validate_shard_requests_match_envelope(envelope, shard_requests)?;
+        let shard_requests = build_shard_requests(envelope, shard_enrichments)?;
 
         let admission = match GnatDispatchValidator::negotiate(envelope, fa_local_capabilities) {
             Ok(admission) => admission,
@@ -90,53 +84,30 @@ impl GnatDispatchPipelineService {
     }
 }
 
-/// Checks that `shard_requests` is exactly the set of shards `envelope`
-/// declares, agreeing on `run_id`, `shard_id`, `worker_type`, and
-/// `source_ref` -- the fields negotiation itself already reasoned about.
-/// This is a consistency check, not a derivation: it never fills in a
-/// missing descriptor, only refuses a mismatched one.
-fn validate_shard_requests_match_envelope(
+/// Builds a full [`GnatShardDispatchRequest`] for every shard `envelope`
+/// declares, merging each with its matching entry in `shard_enrichments`
+/// (keyed by `shard_id`). Refuses a declared shard with no enrichment
+/// supplied for it; never fills one in.
+fn build_shard_requests(
     envelope: &GnatDispatchEnvelope,
-    shard_requests: &[GnatShardDispatchRequest],
-) -> FaLocalResult<()> {
-    if shard_requests.len() != envelope.plan.shards.len() {
-        return Err(FaLocalError::ContractInvalid(format!(
-            "Gnat dispatch shard descriptors ({}) do not match the envelope's declared shard count ({})",
-            shard_requests.len(),
-            envelope.plan.shards.len()
-        )));
-    }
-
-    for declared in &envelope.plan.shards {
-        let Some(request) = shard_requests
-            .iter()
-            .find(|request| request.shard_id == declared.shard_id)
-        else {
-            return Err(FaLocalError::ContractInvalid(format!(
-                "no shard descriptor supplied for declared shard {}",
-                declared.shard_id
-            )));
-        };
-
-        if request.run_id != envelope.plan.run_id {
-            return Err(FaLocalError::ContractInvalid(format!(
-                "shard descriptor {} run_id does not match the envelope's plan run_id",
-                declared.shard_id
-            )));
-        }
-        if request.worker_type != declared.worker_type {
-            return Err(FaLocalError::ContractInvalid(format!(
-                "shard descriptor {} worker_type does not match the envelope's declared worker_type",
-                declared.shard_id
-            )));
-        }
-        if request.source_ref != declared.source_ref {
-            return Err(FaLocalError::ContractInvalid(format!(
-                "shard descriptor {} source_ref does not match the envelope's declared source_ref",
-                declared.shard_id
-            )));
-        }
-    }
-
-    Ok(())
+    shard_enrichments: &HashMap<String, GnatShardEnrichment>,
+) -> FaLocalResult<Vec<GnatShardDispatchRequest>> {
+    envelope
+        .plan
+        .shards
+        .iter()
+        .map(|declared| {
+            let enrichment = shard_enrichments.get(&declared.shard_id).ok_or_else(|| {
+                FaLocalError::ContractInvalid(format!(
+                    "no shard enrichment supplied for declared shard {}",
+                    declared.shard_id
+                ))
+            })?;
+            Ok(GnatShardDispatchRequest::from_declared_shard(
+                &envelope.plan.run_id,
+                declared,
+                enrichment,
+            ))
+        })
+        .collect()
 }
