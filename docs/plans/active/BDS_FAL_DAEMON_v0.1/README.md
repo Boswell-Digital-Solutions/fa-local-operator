@@ -1,7 +1,9 @@
 # BDS-FAL-DAEMON-v0.1 — FA Local Daemon and Capability-Registry Lookup
 
-**Status:** Scope ratified 2026-09-23 (OD-1 through OD-4, all resolved). Still documentation-only —
-no code in any repo is authorized by this plan set yet. Next step: `02_IMPLEMENTATION_SCOPING_PACKET.md`.
+**Status:** Scope ratified 2026-09-23 (OD-1 through OD-4). Implementation scoping drafted
+(`02_IMPLEMENTATION_SCOPING_PACKET.md`) with three new open items (two new Cargo dependencies,
+default port, `CLAUDE.md` edit confirmed safe). Still documentation-only — no code in any repo is
+authorized by this plan set yet.
 **Owner repository:** `Boswell-Digital-Solutions/fa-local-operator`
 **Scope:** Repository (`fa-local-operator` only — OD-1 ruled out the `forge-df-local-foundation`
 dependency the original draft proposed; `Boswell-Digital-Solutions/Forge_Command` is the motivating
