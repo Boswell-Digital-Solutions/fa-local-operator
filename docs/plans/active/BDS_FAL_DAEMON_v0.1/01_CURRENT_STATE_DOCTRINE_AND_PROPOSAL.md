@@ -1,7 +1,10 @@
 # 01 — Current State, Doctrine Check, and Proposed Architecture
 
-**Plan ID (proposed, not yet ratified):** `BDS-FAL-DAEMON-v0.1`
-**Status:** Documentation-only. Proposes a design and lists open decisions. Does not authorize any code.
+**Plan ID:** `BDS-FAL-DAEMON-v0.1`
+**Status:** **Scope ratified 2026-09-23 (OD-1 through OD-4).** This document's design and open
+decisions are accepted as amended below. This still does not authorize writing product code — the
+next step is a separate implementation-scoping packet (`02_...md`), same two-step discipline as
+`Forge_Command`'s own `13_...md` → `14_...md`.
 **Decision scope:** Read-only investigation and design, same discipline as `Forge_Command`'s
 `11_CP3_PERSISTENCE_AND_REPLAY_AUTHORIZATION.md` (the closest precedent in this ecosystem for
 "a service gains a new persistence dependency and a new cross-repo write surface").
@@ -72,7 +75,7 @@ services they govern"). Checked directly, not assumed compatible:
 |---|---|
 | FA Local **owns**: "capability admission checks" | A read-only capability-registry lookup surface is inside this owned scope — it changes *how* the registry is obtained, not *what FA Local decides* with it. |
 | FA Local **does not own**: "hidden persistence authority" | Durable capability-registry storage must not live inside FA Local's own process or database. This is the binding constraint on the persistence design below. |
-| DF Local Foundation **owns**: "local database lifecycle, migrations, backup/restore/export doctrine, app registration conventions, readiness and health state, bounded recovery and integrity support" | The natural, doctrine-consistent home for durable capability-registry storage, if durability is wanted at all (see Open Decision OD-1). |
+| DF Local Foundation **owns**: "local database lifecycle, migrations, backup/restore/export doctrine, app registration conventions, readiness and health state, bounded recovery and integrity support" | Would be the doctrine-consistent home for durable capability-registry storage if durability were needed. **OD-1 resolved this is not needed for this slice** — moot for now, not ruled out for a future slice. |
 | `DECISIONS/0005-falocal-boundary.md` (ADR 0005): FA Local "must not become app semantic authority, durable semantic memory, hidden planner, or open-ended autonomous agent substrate" | A daemon that serves the same admission-shaped read FA Local's CLI already performs does not, by itself, cross into any of these. It would cross the line only if it grew into a write-capable or execution-triggering surface — explicitly excluded from this proposal's scope (see README's non-goals). |
 | "Forbidden drift patterns": "FA Local drifting into open-ended autonomy or stealth orchestration monolith behavior" | Not implicated — this proposal adds a transport, not a decision-making capability FA Local doesn't already have. |
 
@@ -81,83 +84,80 @@ services they govern"). Checked directly, not assumed compatible:
 it does not become FA Local's own durable store, and (c) it is not extended into an
 execution-triggering surface without a separate, later authorization.
 
-## Proposed architecture (design only — not authorized)
+## Ratified architecture (OD-1 through OD-4 resolved, 2026-09-23)
 
 Scoped narrowly to what Forge_Command's CP4 specifically needs, mirroring the narrow, dark-launch
 discipline `Forge_Command`'s own CP5 AAR authorization already used for a comparable
 first-cross-boundary slice (`BDS-NF-OVERNIGHT-SHAPING-001` CP5, `forge` PR #196):
 
-1. **One new capability, not a general server.** A `fa-local-run serve` subcommand (or a small
-   separate binary sharing the existing crate's domain/app layers — Open Decision OD-2), exposing
-   exactly one route: a read-only capability-registry lookup by `capability_id`. No `route` or
-   `execute` semantics move to this surface.
+1. **One new capability, not a general server.** A `fa-local-run serve` subcommand (OD-2 —
+   resolved: subcommand on the existing binary, not a separate daemon binary; see rationale below),
+   exposing exactly one route: a read-only capability-registry lookup by `capability_id`. No `route`
+   or `execute` semantics move to this surface.
 2. **Default-off.** A flag (e.g. `FA_LOCAL_SERVE_ENABLED`) gates whether the surface exists at all,
    matching this ecosystem's existing dark-launch convention (CP5's
    `NEUROFORGE_AAR_INTAKE_ENABLED`).
-3. **Persistence lives outside FA Local.** If the registry needs to be durable and centrally
-   queryable (rather than, say, still file-based but now read by a long-running process instead of
-   per-CLI-invocation — see OD-1), it is proposed to be a new app-domain schema in
-   `forge-df-local-foundation`, mirroring the "Foundation owns migration/lifecycle mechanics; the
-   owning application owns domain schema and content" split Forge_Command's own CP3 work already
-   established with the separate `dataforge-Local` repo (DR-029, a different repo but the same
-   ecosystem-wide storage-mechanics-only pattern). **This is not yet verified against
-   `forge-df-local-foundation`'s actual current schema/migration surface** — that verification is a
-   precondition of ratifying this document, not a fact this document asserts (OD-1).
-4. **Auth is an open decision with two live, real precedents in this ecosystem, not a default
-   choice:**
-   - **(a) Reuse Forge_Command's existing token authority.** Forge_Command already mints real
-     Ed25519 JWS tokens (`POST /fc/token`, `src-tauri/src/token_authority.rs`, cited in
-     Forge_Command's own `11_CP3_...md` Finding 4), and `dataforge-Local` already verifies them for
-     a different scope. A new scope value (e.g. `capability:read`) would let FA Local's daemon
-     verify the same live mechanism rather than build a new one.
-   - **(b) Extend FA Local's own requester-trust model.** `DECISIONS/0002-requester-trust-model.md`
-     and `schemas/requester-trust.schema.json` already define trust envelopes for local,
-     file-argument-supplied callers; this would extend that model to a network-borne requester
-     envelope.
-   This document recommends (a) — it reuses a mechanism already proven twice in this ecosystem
-   (`dataforge-Local`, and Forge_Command is this document's own motivating consumer) rather than
-   stretching a model designed for trusted local file-argument callers across a new network
-   boundary it was never scoped for — but does not rule it; see OD-3.
+3. **In-memory, file-backed — no `forge-df-local-foundation` dependency (OD-1 — resolved).**
+   DR-040's actual requirement is something "live and queryable" to check `capabilityId` eligibility
+   against — not durable, multi-writer, centrally-persisted storage. The daemon loads and
+   schema-validates a locally-configured `capability-registry.schema.json` file once at startup,
+   holds it in memory, and re-reads it on `SIGHUP` or an equivalent `--watch` mechanism (exact
+   mechanism is the implementation packet's call). This satisfies DR-040's blocking fact — a
+   long-running process to query, instead of per-CLI-invocation file arguments — without opening
+   the harder cross-repo `forge-df-local-foundation` schema/migration question at all. **The prior
+   draft of this document proposed Foundation persistence as the default shape; that proposal is
+   superseded by this ruling**, consistent with this ecosystem's own practice of correcting rather
+   than silently carrying forward an unnecessary design (cf. `Forge_Command`'s own DR-030,
+   superseded same-day by DR-032, for exactly this kind of self-caught over-design). Durable,
+   centrally-persisted storage remains available as a later, separately-authorized slice if a real
+   operational need for it — multiple independent writers, an audit trail, cross-restart durability
+   beyond "re-read the file" — actually materializes; none has been demonstrated today.
+4. **Auth: reuse Forge_Command's existing token authority (OD-3 — resolved).** Forge_Command
+   already mints real Ed25519 JWS tokens (`POST /fc/token`, `src-tauri/src/token_authority.rs`,
+   cited in Forge_Command's own `11_CP3_...md` Finding 4), and `dataforge-Local` already verifies
+   them for a different scope. FA Local's daemon verifies the same live mechanism under a new scope
+   value (e.g. `capability:read`) rather than building new auth machinery or extending
+   `DECISIONS/0002-requester-trust-model.md`'s local, file-argument-supplied trust model to a
+   network boundary it was never scoped for.
 5. **Initial caller scope: Forge_Command's CP4 `capabilityId` resolution only.** No other consumer
-   is in scope for a first slice. If ratified and built, this replaces DR-043's hardcoded sentinel
-   in `strategy.ts` — that replacement is Forge_Command's own future implementation PR, authorized
+   is in scope for a first slice. If built, this replaces DR-043's hardcoded sentinel in
+   `strategy.ts` — that replacement is Forge_Command's own future implementation PR, authorized
    under Forge_Command's own plan, not this one.
 6. **Not proposed:** any execution-over-HTTP route; any write-capable route; any change to
    `admit_execution_request`'s pure semantics; any change to how `route`/`execute` obtain a
    registry today (they keep the existing file-argument path unless a later document proposes
-   otherwise).
+   otherwise); any `forge-df-local-foundation` work of any kind.
 
-## Open decisions for the operator
+## Open decisions for the operator — all resolved 2026-09-23
 
-| # | Decision | Notes |
+| # | Decision | Resolution |
 |---|---|---|
-| OD-1 | Does the capability registry need to become durable/centrally-stored at all, or would a long-running daemon process that still reads a locally-configured file (just not re-read per CLI invocation) satisfy CP4/CP5's actual need? If durable, is `forge-df-local-foundation` confirmed (via a code-verified Finding, not assumed) as able to host a new app-domain schema the way this document proposes? | Unresolved. A Foundation-side current-state investigation, mirroring Forge_Command's own CP3 Findings 1–5, is a precondition of ratifying the persistence half of this design. |
-| OD-2 | New `serve` subcommand on the existing `fa-local-run` binary, or a separate daemon binary sharing the crate's `domain`/`app` layers? | Unresolved. Affects packaging, supervision, and whether `fa-local-run`'s existing CLI-only framing (`CLAUDE.md`) needs updating. |
-| OD-3 | Auth mechanism: reuse Forge_Command's Ed25519 token authority (recommended above), or extend FA Local's own requester-trust model? | Unresolved. |
-| OD-4 | Should this plan be registered in `docs/canonical/plan_registry_v1.json` under `BDS-FAL-DAEMON-v0.1`, given `fa-local-operator` currently has none registered there at all despite the forge workspace's own plan-registry protocol? | Unresolved — noted, not decided, by drafting this folder. |
+| OD-1 | Does the capability registry need to become durable/centrally-stored, or does a long-running process reading a locally-configured file satisfy CP4/CP5's actual need? | **RESOLVED — in-memory, file-backed only. No `forge-df-local-foundation` work.** DR-040 only requires something live and queryable; durability was undemonstrated need, not a real requirement. See "Ratified architecture" point 3. |
+| OD-2 | New `serve` subcommand on the existing `fa-local-run` binary, or a separate daemon binary? | **RESOLVED — `serve` subcommand on `fa-local-run`.** Reuses the existing crate directly; consistent with `route`/`execute`/`status`/`canonical-status` already being subcommands on one binary. |
+| OD-3 | Auth mechanism: reuse Forge_Command's Ed25519 token authority, or extend FA Local's own requester-trust model? | **RESOLVED — reuse Forge_Command's existing token authority**, new `capability:read` scope. See "Ratified architecture" point 4. |
+| OD-4 | Register this plan in `docs/canonical/plan_registry_v1.json` as `BDS-FAL-DAEMON-v0.1`? | **RESOLVED — yes, register it.** This plan's registration is a follow-up action to this document, not a separate implementation. |
+
+No open decisions remain in this document.
 
 ## Not authorized by this document
 
-- Any code in `fa-local-operator`, `forge-df-local-foundation`, `Forge_Command`, or any other repo.
+- Any code in `fa-local-operator`, `Forge_Command`, or any other repo.
 - Any execution-over-HTTP route (`route`/`execute` stay CLI-only).
 - Any write-capable route.
 - Any change to `admit_execution_request`'s pure, I/O-free semantics.
-- Any Foundation-side schema or migration work — needs its own code-verified Finding first (OD-1).
-- Any auth-mechanism implementation — needs OD-3 ruled first.
-- Registration in the canonical plan registry — needs OD-4 ruled first.
+- Any `forge-df-local-foundation` work of any kind (OD-1 ruled this out of scope entirely).
+- Any auth-mechanism implementation.
 
-## Proposed exact human authorization (for when the operator is ready to rule)
+The next authorized step is a concrete implementation-scoping packet (`02_...md`: exact route
+shape, exact file allowlist, exact test allowlist) — mirroring `Forge_Command`'s own
+`13_CP4_RESUMPTION_PROPOSAL.md` → `14_CP4_S003_IMPLEMENTATION_PACKET.md` two-step discipline. That
+packet's own acceptance is what authorizes writing product code, not this document.
 
-> Authorized: `BDS-FAL-DAEMON-v0.1`'s current-state and doctrine-compatibility findings above are
-> accepted. [OD-1 through OD-4 rulings inserted here.] This authorizes a Foundation-side
-> current-state investigation (Finding-style, `forge-df-local-foundation`) and, separately, a
-> concrete implementation-scoping packet (exact routes, exact file allowlist, exact test allowlist)
-> for whichever OD-1/OD-2/OD-3 shape is ruled — mirroring `Forge_Command`'s own
-> `13_CP4_RESUMPTION_PROPOSAL.md` → `14_CP4_S003_IMPLEMENTATION_PACKET.md` two-step discipline. It
-> does not itself authorize writing product code in any repo.
+## Traceability
 
-Any materially different scope requires a delta review and renewed authorization, consistent with
-every other authorization packet in this ecosystem.
+| Decision | Resolution recorded in |
+|---|---|
+| OD-1–OD-4 | This document, "Ratified architecture" and "Open decisions" sections, 2026-09-23 |
 
 ## Gate for this document
 
@@ -165,9 +165,11 @@ every other authorization packet in this ecosystem.
 - [x] The doctrine check verifies against `forge-local-systems-runtime/BOUNDARIES.md` and
       `DECISIONS/0005-falocal-boundary.md` directly, not assumed compatible from FA Local's own
       framing alone.
-- [x] The proposal is scoped narrowly (read-only, default-off, one consumer) rather than a general
-      daemon, matching this ecosystem's existing narrow-first-slice discipline.
-- [x] Every place this document is not certain (persistence necessity, Foundation's actual schema
-      fit, auth mechanism, registry registration) is listed as an open decision, not assumed.
-- [ ] Operator rules on OD-1 through OD-4.
-- [ ] This document's proposed authorization text is accepted, amended, or rejected.
+- [x] The proposal is scoped narrowly (read-only, default-off, one consumer, no unnecessary
+      persistence dependency) rather than a general daemon, matching this ecosystem's existing
+      narrow-first-slice discipline.
+- [x] The Foundation-persistence default in the original draft is explicitly superseded, not
+      silently dropped, once OD-1 ruled it unnecessary.
+- [x] Operator rules on OD-1 through OD-4 (2026-09-23, all resolved as above).
+- [ ] Registered in `docs/canonical/plan_registry_v1.json` (OD-4) — follow-up action.
+- [ ] `02_IMPLEMENTATION_SCOPING_PACKET.md` drafted and accepted before any code is written.

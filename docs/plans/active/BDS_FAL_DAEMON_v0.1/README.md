@@ -1,10 +1,14 @@
 # BDS-FAL-DAEMON-v0.1 — FA Local Daemon and Capability-Registry Lookup
 
-**Status:** Proposed. Documentation-only. No code in any repo is authorized by this plan set.
+**Status:** Scope ratified 2026-09-23 (OD-1 through OD-4, all resolved). Still documentation-only —
+no code in any repo is authorized by this plan set yet. Next step: `02_IMPLEMENTATION_SCOPING_PACKET.md`.
 **Owner repository:** `Boswell-Digital-Solutions/fa-local-operator`
-**Scope:** Cross-repository (`fa-local-operator`, `forge-df-local-foundation`; `Boswell-Digital-Solutions/Forge_Command` is the motivating downstream consumer, not an implementer under this plan)
+**Scope:** Repository (`fa-local-operator` only — OD-1 ruled out the `forge-df-local-foundation`
+dependency the original draft proposed; `Boswell-Digital-Solutions/Forge_Command` is the motivating
+downstream consumer, not an implementer under this plan)
 **Governing doctrine:** `forge-local-systems-runtime/BOUNDARIES.md`, `forge-local-systems-runtime/DECISIONS/0005-falocal-boundary.md`
-**Not registered yet:** `fa-local-operator` currently has zero plans in `docs/canonical/plan_registry_v1.json`. Whether this plan is registered there, and under what `plan_id`, is an open decision in `01_CURRENT_STATE_DOCTRINE_AND_PROPOSAL.md` — not decided by drafting this folder.
+**Registration:** OD-4 ruled yes — to be registered in `docs/canonical/plan_registry_v1.json` as a
+follow-up action.
 
 ## Why this exists
 
@@ -23,7 +27,8 @@ implementation authorization.
 | File | Purpose |
 |---|---|
 | `README.md` | Identity and navigation |
-| `01_CURRENT_STATE_DOCTRINE_AND_PROPOSAL.md` | Code-verified current state, doctrine-compatibility check, proposed architecture, open decisions, and the exact authorization text this plan needs before any code |
+| `01_CURRENT_STATE_DOCTRINE_AND_PROPOSAL.md` | Code-verified current state, doctrine-compatibility check, and the ratified architecture (OD-1 through OD-4 resolved) |
+| `02_IMPLEMENTATION_SCOPING_PACKET.md` | Not yet written. Exact route shape, exact file allowlist, exact test allowlist, and the authorization text that would actually permit writing code |
 
 ## Explicit non-goals
 
