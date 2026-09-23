@@ -1,10 +1,10 @@
 # 02 — Implementation Scoping Packet
 
 **Plan ID:** `BDS-FAL-DAEMON-v0.1`
-**Status:** Draft. Freezes the concrete design `01_CURRENT_STATE_DOCTRINE_AND_PROPOSAL.md` ratified
-(OD-1 through OD-4). **Two new Cargo dependencies are required and are called out explicitly below
-as their own decision** — nothing in `01_...md`'s ratification approved a supply-chain change, and
-this packet does not treat "scope ratified" as silently covering it.
+**Status:** **Fully authorized, 2026-09-23.** Freezes the concrete design
+`01_CURRENT_STATE_DOCTRINE_AND_PROPOSAL.md` ratified (OD-1 through OD-4), and its own three open
+items (dependencies, port, `CLAUDE.md` edit safety) are now all resolved. This authorizes writing
+exactly the files in "File allowlist" below, in `fa-local-operator` only.
 **Decision scope:** Design/scoping only, same discipline as `Forge_Command`'s
 `14_CP4_S003_IMPLEMENTATION_PACKET.md`. This document's own acceptance is what authorizes writing
 exactly the files listed in "File allowlist" below — nothing broader.
@@ -156,16 +156,19 @@ any `Forge_Command` file (that repo's own future PR wires its consuming side, un
 12. `admit_execution_request` and every existing `route`/`execute` test continue passing unmodified
     — proves this packet touched no shared domain logic.
 
-## Open items — resolved 2026-09-23
+## Open items — all resolved 2026-09-23
 
-1. **The two new dependencies** (table above) — still open. A supply-chain addition, not covered by
-   OD-1–OD-4.
+1. **The two new dependencies (table above) — RESOLVED: authorized.** Operator ruling, 2026-09-23:
+   "Authorized." `tiny_http` and `jsonwebtoken`/`ed25519-dalek` (matching
+   `Forge_Command/src-tauri/Cargo.toml`'s exact versions) may be added to `Cargo.toml`.
 2. **Default port — RESOLVED: `8011`.** Claimed in the canonical `PORT_REGISTRY.md` (Agent Layer,
    `forge` root repo, 2026-09-23) ahead of any code, per that file's own Rule 1 ("claim before
    coding"). `--port` defaults to `8011`; overridable at the operator's discretion.
 3. **`CLAUDE.md` generation — RESOLVED: confirmed hand-written, direct edit is safe.** No
    `repo.manifest.yaml` exists in this repo and `CLAUDE.md` carries no generated-file marker.
    Operator confirmed.
+
+**This packet is now fully authorized.** The exact authorization text below is accepted as written.
 
 ## Proposed exact human authorization (for when the operator is ready to rule)
 
@@ -190,5 +193,6 @@ every other authorization packet in this ecosystem.
       token, corrupted reload) at the same density this ecosystem's other authorization packets use.
 - [x] Port resolved (`8011`, claimed in `PORT_REGISTRY.md`).
 - [x] `CLAUDE.md` generation status resolved (hand-written, direct edit confirmed safe).
-- [ ] Operator rules on the two new dependencies (`tiny_http`, `jsonwebtoken`/`ed25519-dalek`).
-- [ ] This document's proposed authorization text is accepted, amended, or rejected.
+- [x] Operator authorized the two new dependencies (`tiny_http`, `jsonwebtoken`/`ed25519-dalek`),
+      2026-09-23.
+- [x] This document's proposed authorization text is accepted as written, 2026-09-23.

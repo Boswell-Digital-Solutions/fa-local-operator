@@ -440,6 +440,57 @@ fn main() {
             }
         }
 
+        Some("serve") => {
+            // Default-off dark-launch gate (BDS-FAL-DAEMON-v0.1): without
+            // this set, the serve surface does not exist at all -- not
+            // merely a 404 on the route, no listener is ever bound.
+            if std::env::var("FA_LOCAL_SERVE_ENABLED").is_err() {
+                eprintln!(
+                    "error: serve requires FA_LOCAL_SERVE_ENABLED to be set (default-off; see docs/plans/active/BDS_FAL_DAEMON_v0.1/02_IMPLEMENTATION_SCOPING_PACKET.md)"
+                );
+                process::exit(1);
+            }
+
+            let flag_path = |flag: &str| -> Option<&str> {
+                args.windows(2)
+                    .find(|w| w[0] == flag)
+                    .map(|w| w[1].as_str())
+            };
+
+            let registry_file = flag_path("--registry-file").unwrap_or_else(|| {
+                eprintln!("error: serve requires --registry-file");
+                process::exit(1);
+            });
+
+            let port: u16 = match flag_path("--port") {
+                Some(value) => value.parse().unwrap_or_else(|e| {
+                    eprintln!("error: invalid --port {value:?}: {e}");
+                    process::exit(1);
+                }),
+                None => fa_local::adapters::serve::DEFAULT_SERVE_PORT,
+            };
+
+            let public_keys_env = flag_path("--public-keys-env")
+                .unwrap_or(fa_local::adapters::serve::DEFAULT_PUBLIC_KEYS_ENV);
+
+            let public_keys = fa_local::adapters::serve::load_public_keys_from_env(public_keys_env)
+                .unwrap_or_else(|e| {
+                    eprintln!("error: invalid {public_keys_env}: {e}");
+                    process::exit(1);
+                });
+
+            let service = fa_local::app::serve_service::ServeService::load(registry_file)
+                .unwrap_or_else(|e| {
+                    eprintln!("error: could not load --registry-file {registry_file:?}: {e}");
+                    process::exit(1);
+                });
+
+            if let Err(e) = fa_local::adapters::serve::run_server(&service, port, &public_keys) {
+                eprintln!("error: serve failed: {e}");
+                process::exit(1);
+            }
+        }
+
         Some("gnat-dispatch") => {
             let flag_path = |flag: &str| -> Option<&str> {
                 args.windows(2)
@@ -739,6 +790,9 @@ fn main() {
                 "  forensics-query   Query a SQLite forensic store by correlation-id or event-type"
             );
             eprintln!(
+                "  serve             Serve one read-only capability-registry lookup route over HTTP (default-off; requires FA_LOCAL_SERVE_ENABLED)"
+            );
+            eprintln!(
                 "  gnat-dispatch     Negotiate a Cortex Gnat dispatch envelope, dispatch every declared shard if admitted, and record a forensic event for each outcome"
             );
             eprintln!(
@@ -802,6 +856,22 @@ fn main() {
                 "  --event-type <TYPE>          Return events of this type, oldest first (denial_issued, route_decision_resolved, review_package_prepared, execution_status_observed)"
             );
             eprintln!("  (exactly one of --correlation-id or --event-type is required)");
+            eprintln!("");
+            eprintln!(
+                "OPTIONS FOR serve (--registry-file required; requires FA_LOCAL_SERVE_ENABLED to be set):"
+            );
+            eprintln!(
+                "  --registry-file <FILE>       A capability-registry.schema.json-valid file to load and serve"
+            );
+            eprintln!(
+                "  --port <PORT>                Port to listen on (default: 8011, per PORT_REGISTRY.md)"
+            );
+            eprintln!(
+                "  --public-keys-env <NAME>     Env var carrying a JSON {{kid: public_key}} map (default: FA_LOCAL_SERVE_PUBLIC_KEYS)"
+            );
+            eprintln!(
+                "  Send SIGHUP to reload --registry-file; a failed reload keeps serving the previous good registry"
+            );
             eprintln!("");
             eprintln!(
                 "OPTIONS FOR gnat-dispatch (--envelope, --shard-enrichment, and --cortex-repo-root required; the rest optional):"
