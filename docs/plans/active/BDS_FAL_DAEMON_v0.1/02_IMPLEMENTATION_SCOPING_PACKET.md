@@ -65,7 +65,7 @@ a list route is a scope increase this packet does not propose.
 ```
 fa-local-run serve \
   --registry-file <path to a capability-registry.schema.json-valid file> \
-  --port <port, default TBD — operator sign-off, see Open items> \
+  --port 8011 \
   --public-keys-env FA_LOCAL_SERVE_PUBLIC_KEYS
 ```
 
@@ -156,24 +156,24 @@ any `Forge_Command` file (that repo's own future PR wires its consuming side, un
 12. `admit_execution_request` and every existing `route`/`execute` test continue passing unmodified
     — proves this packet touched no shared domain logic.
 
-## Open items needing operator sign-off before this packet is fully authorized
+## Open items — resolved 2026-09-23
 
-1. **The two new dependencies** (table above) — a supply-chain addition, not covered by OD-1–OD-4.
-2. **Default port** — not chosen here. `dataforge-Local` defaults to `8005`,
-   `neuronforge-local-operator` to `8000` (both cited in `01_...md`'s current-state findings via the
-   integration modules that call them). A collision-free default for FA Local's daemon needs an
-   explicit pick, not an assumption.
-3. **`CLAUDE.md` generation** — confirm whether this repo's `CLAUDE.md` is hand-written or generated
-   from a manifest (`Forge_Command`'s is; this repo's may or may not be) before editing it as part of
-   this packet's file allowlist.
+1. **The two new dependencies** (table above) — still open. A supply-chain addition, not covered by
+   OD-1–OD-4.
+2. **Default port — RESOLVED: `8011`.** Claimed in the canonical `PORT_REGISTRY.md` (Agent Layer,
+   `forge` root repo, 2026-09-23) ahead of any code, per that file's own Rule 1 ("claim before
+   coding"). `--port` defaults to `8011`; overridable at the operator's discretion.
+3. **`CLAUDE.md` generation — RESOLVED: confirmed hand-written, direct edit is safe.** No
+   `repo.manifest.yaml` exists in this repo and `CLAUDE.md` carries no generated-file marker.
+   Operator confirmed.
 
 ## Proposed exact human authorization (for when the operator is ready to rule)
 
 > Authorized: `BDS-FAL-DAEMON-v0.1`'s implementation scoping packet (`02_...md`) is accepted,
 > including the `tiny_http` and `jsonwebtoken`/`ed25519-dalek` dependency additions. Default port:
-> [inserted on ruling]. This authorizes writing exactly the files in "File allowlist" above, and no
-> others, in `Boswell-Digital-Solutions/fa-local-operator` only. It does not authorize any change in
-> `Forge_Command`, `forge-df-local-foundation`, or any other repository.
+> `8011` (claimed in `PORT_REGISTRY.md`). This authorizes writing exactly the files in "File
+> allowlist" above, and no others, in `Boswell-Digital-Solutions/fa-local-operator` only. It does
+> not authorize any change in `Forge_Command`, `forge-df-local-foundation`, or any other repository.
 
 Any materially different scope requires a delta review and renewed authorization, consistent with
 every other authorization packet in this ecosystem.
@@ -188,5 +188,7 @@ every other authorization packet in this ecosystem.
 - [x] File allowlist is exhaustive; nothing outside it is implied to change.
 - [x] Test allowlist includes the fail-closed cases (no key configured, malformed scope, expired
       token, corrupted reload) at the same density this ecosystem's other authorization packets use.
-- [ ] Operator rules on the three open items (dependencies, port, `CLAUDE.md` generation status).
+- [x] Port resolved (`8011`, claimed in `PORT_REGISTRY.md`).
+- [x] `CLAUDE.md` generation status resolved (hand-written, direct edit confirmed safe).
+- [ ] Operator rules on the two new dependencies (`tiny_http`, `jsonwebtoken`/`ed25519-dalek`).
 - [ ] This document's proposed authorization text is accepted, amended, or rejected.
