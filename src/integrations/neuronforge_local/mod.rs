@@ -48,7 +48,7 @@ pub use forensics::{
 /// Local's own route to reject.
 pub const ADMITTED_TASK_ID: &str = "analyze.style.scene.v1";
 
-const NEURONFORGE_LOCAL_DEFAULT_URL: &str = "http://127.0.0.1:8000";
+const NEURONFORGE_LOCAL_DEFAULT_URL: &str = "http://127.0.0.1:9011";
 const NEURONFORGE_LOCAL_TASK_DISPATCH_PATH: &str = "/api/v1/fa-local/task-dispatch";
 const REQUEST_TIMEOUT_SECONDS: u64 = 180;
 
