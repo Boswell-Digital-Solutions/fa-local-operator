@@ -39,5 +39,5 @@ FLO is the validating dispatcher of the local plane: **it validates plans and di
 
 - Do not invent undocumented APIs, tables, routes, or environment variables.
 - `ci_gate.sh` resolves forge-contract-core by relative path (`../../contracts/forge_contract_core`, falling back to `forge-contract-core`) and preferentially uses that repo's `.venv/bin/python`. A moved or renamed sibling checkout makes the gate fail loudly at the path check — and a missing `.venv` silently downgrades it to bare `python3`. Confirm which interpreter it printed.
-- FLO is a Rust CLI with no HTTP surface, so it cannot be supervised as a local HTTP service. Anything that needs to reach it over a port needs a different host process.
+- FLO's `serve` subcommand (`BDS-FAL-DAEMON-v0.1`) is its only HTTP-serving surface: one read-only route, `GET /api/v1/capabilities/{capability_id}`, default-off unless `FA_LOCAL_SERVE_ENABLED` is set, port 8011 by default. It is not a general HTTP service -- no write-capable route, no execution-over-HTTP route, and `route`/`execute` stay CLI-only. Everything else FA Local does over HTTP remains client-only (`integrations/df_local`, `integrations/neuronforge_local`).
 - `forge-local-runtime` remains the doctrine and shared-vocabulary authority; this repo implements FA Local within those bounds.

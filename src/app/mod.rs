@@ -8,3 +8,4 @@ pub mod neuronforge_dispatch_pipeline_service;
 pub mod reuse_reconnaissance_service;
 pub mod review_service;
 pub mod routing_service;
+pub mod serve_service;
