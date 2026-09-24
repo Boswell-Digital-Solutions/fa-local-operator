@@ -842,7 +842,7 @@ fn main() {
                 "  --scene <FILE>               Plain-text scene file to analyze (analyze.style.scene.v1's only admitted task)"
             );
             eprintln!(
-                "  --neuronforge-url <URL>      NeuronForge Local base URL (default: $NEURONFORGE_LOCAL_URL or http://127.0.0.1:8000)"
+                "  --neuronforge-url <URL>      NeuronForge Local base URL (default: $NEURONFORGE_LOCAL_URL or http://127.0.0.1:9011)"
             );
             eprintln!(
                 "  --model <ID>                 Ollama model id to request (default: qwen2.5:14b, this repo's documented baseline)"
