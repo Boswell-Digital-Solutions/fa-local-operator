@@ -1,11 +1,15 @@
 # BDS-FAL-DAEMON-v0.1 — FA Local Daemon and Capability-Registry Lookup
 
-**Status:** Implemented; closeout pending. Scope ratified 2026-09-23 (OD-1 through OD-4).
-`02_IMPLEMENTATION_SCOPING_PACKET.md` is fully authorized (2026-09-23). Its three open items (two
-new Cargo dependencies, default port, `CLAUDE.md` edit safety) are resolved, and a 2026-09-24
-amendment sets the default port to 8012. #27 implements the packet: `fa-local-run serve`, one
-read-only route, default-off. #29 moves the default port to 8012, the port that the Forge
-`PORT_REGISTRY.md` registers. No closeout record exists yet.
+**Status:** Implemented and closed out, 2026-09-24. `03_CLOSEOUT.md` re-verifies all 12 test-allowlist
+cases against `fa-local-operator@f53e34f` (current `master`), accounts for the real port collision
+(`8011`→`8012`, see below) `#29` fixed, and files one unrelated pre-existing flaky test found during
+verification (`KI-FLO-20260924-004`, non-blocking). `#27` implemented the packet
+(`fa-local-run serve`, one read-only route, default-off); `#29` moved the default port to `8012`
+after `8011` turned out to already be live-bound by `context-runtime`/ForgeMath, undocumented in
+`PORT_REGISTRY.md` at claim time; `#30` swept stale `doc/system`/`CLAUDE.md` text. Registered in the
+canonical registry as `implemented_unverified` (not `verified_complete` — that status requires a
+Drive-archived closeout package per this registry's own established convention, which this closeout
+does not attempt; the evidence lives in-repo in `03_CLOSEOUT.md` instead).
 **Owner repository:** `Boswell-Digital-Solutions/fa-local-operator`
 **Scope:** Repository (`fa-local-operator` only — OD-1 ruled out the `forge-df-local-foundation`
 dependency the original draft proposed; `Boswell-Digital-Solutions/Forge_Command` is the motivating
@@ -33,6 +37,7 @@ decision: `01_...md` is a code-verified current-state and doctrine check with a 
 | `README.md` | Identity and navigation |
 | `01_CURRENT_STATE_DOCTRINE_AND_PROPOSAL.md` | Code-verified current state, doctrine-compatibility check, and the ratified architecture (OD-1 through OD-4 resolved) |
 | `02_IMPLEMENTATION_SCOPING_PACKET.md` | Fully authorized 2026-09-23 (port amended to 8012 on 2026-09-24). Exact route shape, exact file allowlist, exact test allowlist, and the accepted authorization text |
+| `03_CLOSEOUT.md` | Independent re-verification against merged `master`, the port-collision writeup, and accepted limitations |
 
 ## Explicit non-goals
 

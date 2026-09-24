@@ -442,3 +442,29 @@ code. Remove `--watch` from the doc comment. Then run `bash doc/system/BUILD.sh`
 under `docs/plans/` is a record and stays unchanged.
 
 **Scope:** Open. Close this entry when §3, §9, `CLAUDE.md`, and the doc comment match the code.
+
+---
+
+## KI-FLO-20260924-004 — `cortex_gnat_shard_dispatch`'s deadline test is order-dependent under `cargo test`'s default parallelism
+
+**Date found:** 2026-09-24
+**Status:** open
+
+**What is wrong:** `cargo test` (default multi-threaded runner) intermittently fails
+`dispatch_maps_a_complete_receipt_to_completed` in `tests/cortex_gnat_shard_dispatch.rs`. The same
+suite passes every time with `cargo test --test cortex_gnat_shard_dispatch -- --test-threads=1`.
+Found while verifying `BDS-FAL-DAEMON-v0.1`'s merged `serve` daemon against its own test allowlist
+— unrelated to `serve`, which has no shared state with Cortex dispatch.
+
+**Root cause:** Not yet isolated. The suite's sibling test,
+`dispatch_kills_a_runner_that_outruns_its_deadline_instead_of_blocking`, exercises a real
+subprocess deadline/kill path (`libc::kill(-pid, SIGKILL)`, per `KI-FLO-20260918-004`); run
+concurrently with other tests under system load, timing-sensitive subprocess tests are a plausible
+but unconfirmed cause. `bash ci_gate.sh` passed the same session this was found, so the gate's own
+test invocation (sequencing/env differs from a bare `cargo test`) does not reliably hit it.
+
+**Fix:** None yet. Isolate whether the deadline test's timing margin is the cause, and either widen
+it or mark the suite `--test-threads=1`-required in `ci_gate.sh` if so.
+
+**Scope:** Open. Does not block `BDS-FAL-DAEMON-v0.1`'s closeout — unrelated code path, and
+`ci_gate.sh` (this repo's actual gate) passed.
