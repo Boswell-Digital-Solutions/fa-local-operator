@@ -115,7 +115,7 @@ delivered — see the "current bounded baseline" list in
 `doc/system/00_overview/01-overview-charter.md`. Still not delivered:
 
 - broad cross-service adapter integrations (adapters reaching real peer services, not local-only delivery) — the Cortex Gnat proving slice is delivered and live-verified end to end (negotiate → deadline-bounded dispatch → forensic recording, via `fa-local-run gnat-dispatch`, including the negotiation-to-dispatch bridge from `GnatDispatchShard`), but still has no export sink for its forensic events, and NeuronForge-Local/DF-Local integrations are unstarted — see `doc/system/10_service-contract/02-contract-surface.md`
-- daemon or networked API surface
+- daemon or networked API surface beyond the one read-only `serve` lookup route (`BDS-FAL-DAEMON-v0.1`, see §1)
 - persistence layer beyond forensic evidence
 - DataForge Local staging endpoint wiring for execution_status_event writeback (Phase X4 DataForge side)
 
@@ -159,9 +159,9 @@ The current delivered state should be described as:
 - first typed intake boundary present (`IntakeService`)
 - `DecisionService` present, composing intake/trust/policy/capability admission into one resolved route decision
 - `ExecutionPipelineService` present, composing decision resolution, plan validation, adapter dispatch, and forensic recording into one bounded run
-- first CLI binary surface present (`fa-local-run`), with `validate`, `route`, `execute`, `forensics-query`, `status`, and `canonical-status` subcommands
+- first CLI binary surface present (`fa-local-run`), with `validate`, `route`, `execute`, `forensics-query`, `serve`, `gnat-dispatch`, `neuronforge-dispatch`, `status`, and `canonical-status` subcommands
 - first typed writeback stub present (`DfLocalAdapter::post_execution_status_event` — not yet wired)
 - contract gate runner present (`ci_gate.sh`)
 - no full external FA Local runtime surface admitted yet
 
-That wording matters because the crate now has meaningful contract, deny-path, posture-resolution, bounded plan-validation, truthful status, bounded review-handoff behavior, a bounded review-package emitter workflow for both current review postures, minimal forensic-event truth behavior, a bounded forensic recorder/export workflow with concrete JSONL and SQLite sinks, bounded operator-friction behavior, deterministic internal routing behavior, bounded internal coordination behavior, a capability-scoped multi-adapter delivery seam (whole-route and per-step), one concrete capability-scoped local-file-write adapter, one concrete Nmap preflight adapter, a typed intake entry point, a decision-resolution and execution-pipeline orchestration layer, a CLI binary exposing all of it, and a typed writeback stub — but it still does not ship persistence beyond forensic evidence, broad cross-service adapter integrations, generic workflow orchestration, live scan execution, or a networked API/daemon runtime surface.
+That wording matters because the crate now has meaningful contract, deny-path, posture-resolution, bounded plan-validation, truthful status, bounded review-handoff behavior, a bounded review-package emitter workflow for both current review postures, minimal forensic-event truth behavior, a bounded forensic recorder/export workflow with concrete JSONL and SQLite sinks, bounded operator-friction behavior, deterministic internal routing behavior, bounded internal coordination behavior, a capability-scoped multi-adapter delivery seam (whole-route and per-step), one concrete capability-scoped local-file-write adapter, one concrete Nmap preflight adapter, a typed intake entry point, a decision-resolution and execution-pipeline orchestration layer, a CLI binary exposing all of it, and a typed writeback stub — but it still does not ship persistence beyond forensic evidence, broad cross-service adapter integrations, generic workflow orchestration, live scan execution, or a networked API/daemon runtime surface beyond the one read-only `serve` lookup route.
