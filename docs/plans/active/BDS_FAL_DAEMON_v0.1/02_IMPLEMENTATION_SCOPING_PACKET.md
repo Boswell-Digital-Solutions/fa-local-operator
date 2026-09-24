@@ -65,7 +65,7 @@ a list route is a scope increase this packet does not propose.
 ```
 fa-local-run serve \
   --registry-file <path to a capability-registry.schema.json-valid file> \
-  --port 8011 \
+  --port 8012 \
   --public-keys-env FA_LOCAL_SERVE_PUBLIC_KEYS
 ```
 
@@ -164,6 +164,11 @@ any `Forge_Command` file (that repo's own future PR wires its consuming side, un
 2. **Default port — RESOLVED: `8011`.** Claimed in the canonical `PORT_REGISTRY.md` (Agent Layer,
    `forge` root repo, 2026-09-23) ahead of any code, per that file's own Rule 1 ("claim before
    coding"). `--port` defaults to `8011`; overridable at the operator's discretion.
+   **Amended 2026-09-24: `8012`.** The 8011 claim (forge#208) never merged. forge#210 registered
+   8011 as context-runtime, which Forge_Command, forgeHQ, and AuthorForge already address there.
+   This daemon then merged (#27) with 8011 as its default. The operator asked for forge#208 to be
+   fixed. The default moves to `8012`, the next Agent Layer port, and forge#208 now claims 8012.
+   See `KI-FLO-20260924-001`.
 3. **`CLAUDE.md` generation — RESOLVED: confirmed hand-written, direct edit is safe.** No
    `repo.manifest.yaml` exists in this repo and `CLAUDE.md` carries no generated-file marker.
    Operator confirmed.
@@ -178,6 +183,9 @@ any `Forge_Command` file (that repo's own future PR wires its consuming side, un
 > allowlist" above, and no others, in `Boswell-Digital-Solutions/fa-local-operator` only. It does
 > not authorize any change in `Forge_Command`, `forge-df-local-foundation`, or any other repository.
 
+Amendment, 2026-09-24: the default port in this authorization is now `8012` (open item 2). The file
+allowlist and every other term are unchanged.
+
 Any materially different scope requires a delta review and renewed authorization, consistent with
 every other authorization packet in this ecosystem.
 
@@ -191,7 +199,7 @@ every other authorization packet in this ecosystem.
 - [x] File allowlist is exhaustive; nothing outside it is implied to change.
 - [x] Test allowlist includes the fail-closed cases (no key configured, malformed scope, expired
       token, corrupted reload) at the same density this ecosystem's other authorization packets use.
-- [x] Port resolved (`8011`, claimed in `PORT_REGISTRY.md`).
+- [x] Port resolved (`8011`, claimed in `PORT_REGISTRY.md`; amended to `8012` on 2026-09-24, open item 2).
 - [x] `CLAUDE.md` generation status resolved (hand-written, direct edit confirmed safe).
 - [x] Operator authorized the two new dependencies (`tiny_http`, `jsonwebtoken`/`ed25519-dalek`),
       2026-09-23.

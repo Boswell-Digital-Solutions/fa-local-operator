@@ -334,3 +334,60 @@ CP1 was activated.
 a valid, successful CP0 outcome, not a stalled one. Re-open only if a concrete FA-Local-side
 consumer or workflow need for `drift-analysis` or `analyze.continuity.adjacent_scene.v1` is
 identified in the future -- do not re-run this evidence cycle speculatively.
+
+---
+
+## KI-FLO-20260924-001 — `fa-local-run serve` defaulted to port 8011, which the registry gives to context-runtime
+
+**Date found:** 2026-09-24
+**Status:** closed (fixed same session)
+
+**What is wrong:** `DEFAULT_SERVE_PORT` (`src/adapters/serve/http_server.rs`) was 8011. The
+`serve` help text and `CLAUDE.md` said the same. The forge `PORT_REGISTRY.md` gives 8011 to
+context-runtime (forge#210). context-runtime binds 8011 by default, and Forge_Command, forgeHQ,
+and AuthorForge address it there. With `FA_LOCAL_SERVE_ENABLED` set, the daemon and
+context-runtime could not both start on one machine.
+
+**Root cause:** The registry listed 8011 as reserved, but context-runtime and ForgeMath already
+bound it. Two changes then claimed the row on the same day. forge#208 claimed it for this daemon;
+forge#210 registered it for context-runtime and moved ForgeMath to 8006. forge#210 merged first,
+so forge#208 conflicted and did not merge. This daemon (#27) merged after that, still defaulting
+to 8011. No check compares port defaults with the registry (forge `KI-FORGE-20260923-009`).
+
+**Fix:** `DEFAULT_SERVE_PORT` is 8012, the next free Agent Layer port. None of the 41
+repositories checked out in this session uses 8012. The help text, `CLAUDE.md`, and the scoping packet (open item 2, with an
+amendment note) say 8012. forge#208 now claims 8012 in `PORT_REGISTRY.md`. `--port` still
+overrides the default.
+
+**Scope:** Closed. The daemon is default-off, so only an install with `FA_LOCAL_SERVE_ENABLED`
+set ever bound 8011. A script that passes `--port 8011` still collides and must change.
+
+---
+
+## KI-FLO-20260924-002 — `doc/system`, `CLAUDE.md`, and `ROADMAP.md` still say FA Local has no daemon or API surface
+
+**Date found:** 2026-09-24
+**Status:** open
+
+**What is wrong:** `fa-local-run serve` (#27, `BDS-FAL-DAEMON-v0.1`) adds one read-only HTTP
+route. Three documents still say that no such surface exists:
+
+- `doc/system/00_overview/01-overview-charter.md` lists "daemon or API surfaces" under "still
+  intentionally not delivered". `CLAUDE.md` names this chapter as the canonical current-versus-
+  not-delivered reference, and it wins on conflict. `doc/FLOSYSTEM.md` is assembled from it.
+- The `CLAUDE.md` status paragraph lists "a daemon/API surface" as not delivered. The Notes
+  section of the same file describes `serve`.
+- `ROADMAP.md` item 2 says FA Local "stays a CLI binary with no HTTP surface by doctrine". Item 3
+  says persistence is blocked on item 2.
+
+**Root cause:** The file allowlist in `02_IMPLEMENTATION_SCOPING_PACKET.md` covered the code, the
+tests, and one `CLAUDE.md` line. It did not list `doc/system/` or `ROADMAP.md`, so #27 left them
+unchanged.
+
+**Fix:** None yet. The charter, the `CLAUDE.md` status paragraph, and `ROADMAP.md` items 2 and 3
+must describe the delivered `serve` surface and its limits: one read-only route, default-off.
+Then `bash doc/system/BUILD.sh` rebuilds `doc/FLOSYSTEM.md`. These files are outside the packet's
+allowlist, so the update needs the operator's go-ahead.
+
+**Scope:** Open. Close this entry when the three documents and `doc/FLOSYSTEM.md` describe
+`serve` as delivered.

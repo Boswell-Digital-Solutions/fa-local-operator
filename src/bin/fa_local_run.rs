@@ -864,7 +864,7 @@ fn main() {
                 "  --registry-file <FILE>       A capability-registry.schema.json-valid file to load and serve"
             );
             eprintln!(
-                "  --port <PORT>                Port to listen on (default: 8011, per PORT_REGISTRY.md)"
+                "  --port <PORT>                Port to listen on (default: 8012, per PORT_REGISTRY.md)"
             );
             eprintln!(
                 "  --public-keys-env <NAME>     Env var carrying a JSON {{kid: public_key}} map (default: FA_LOCAL_SERVE_PUBLIC_KEYS)"

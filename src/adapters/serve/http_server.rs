@@ -24,9 +24,10 @@ use crate::errors::{FaLocalError, FaLocalResult};
 use super::token_verify::verify_bearer_token;
 
 /// Default port this daemon listens on when `--port` is not given -- claimed
-/// in the ecosystem's canonical `PORT_REGISTRY.md` (Agent Layer) ahead of
-/// this packet's acceptance, per that file's own "claim before coding" rule.
-pub const DEFAULT_SERVE_PORT: u16 = 8011;
+/// in the ecosystem's canonical `PORT_REGISTRY.md` (Agent Layer), per that
+/// file's own "claim before coding" rule. Was 8011, which the registry gives
+/// to context-runtime (KI-FLO-20260924-001).
+pub const DEFAULT_SERVE_PORT: u16 = 8012;
 
 /// Default environment variable name carrying the `kid -> public key` map,
 /// overridable with `--public-keys-env`.
