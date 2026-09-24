@@ -397,10 +397,14 @@ unchanged.
   three subcommands to both subcommand lists.
 - `ROADMAP.md` item 2 records the narrow daemon that `BDS-FAL-DAEMON-v0.1` authorized, and item 3
   no longer depends on item 2.
+- `docs/plans/active/BDS_FAL_DAEMON_v0.1/README.md` updates its status line, its registration
+  line, and its package table. They said that packet 02 was not written and that the plan
+  authorized no code.
 - `bash doc/system/BUILD.sh` rebuilt `doc/FLOSYSTEM.md` and reported `BUILD_OK`.
 
 **Scope:** Closed. The charter, `CLAUDE.md`, `ROADMAP.md`, and `doc/FLOSYSTEM.md` describe `serve`
-as delivered, with its limits. The plan set under `docs/plans/` is a record and stays unchanged.
+as delivered, with its limits. The plan README gives the current status of the plan. The plan
+documents `01_...md` and `02_...md` are a record and stay unchanged.
 The legacy `doc/faSYSTEM.md` is non-canonical (§6) and stays unchanged. `KI-FLO-20260924-003`
 tracks other stale text that this sweep found.
 
