@@ -8,14 +8,14 @@ fa-local-operator (FLO) is the governed local execution operator for Forge appli
 
 **Not `forge-fa-local`.** Same brand, two families: this repo is the business-side backend/ecosystem execution boundary; `apps/public-app-local-support/forge-fa-local` is the unrelated public-app support variant. Path decides which one owns the behavior.
 
-Current status: bounded baseline delivered, not a scaffold. Schema-backed contracts, requester-trust/policy/capability admission, approval-posture resolution, bounded execution-plan validation, a capability-scoped `AdapterRegistry` for multi-adapter and per-step dispatch, JSONL and SQLite forensic export, a DataForge Local execution-bridge writeback path (Phase X4 — `DfLocalAdapter::post_execution_status_event`), and a CLI (`route`, `execute`, `forensics-query`, `validate`, `status`, `canonical-status`) all exist and are tested. Still genuinely not delivered: broad cross-service adapter integrations, declared-fallback coordination across steps dispatched to different adapters, a daemon/API surface, and persistence beyond forensic evidence — see `doc/system/00_overview/01-overview-charter.md`, the canonical current-baseline reference (`ROADMAP.md` and the other root pointer files predate this and are being superseded by it).
+Current status: bounded baseline delivered, not a scaffold. Schema-backed contracts, requester-trust/policy/capability admission, approval-posture resolution, bounded execution-plan validation, a capability-scoped `AdapterRegistry` for multi-adapter and per-step dispatch, declared-fallback coordination across steps dispatched to different adapters, JSONL and SQLite forensic export, a DataForge Local execution-bridge writeback path (Phase X4 — `DfLocalAdapter::post_execution_status_event`), a default-off, read-only capability-lookup daemon (`serve`, `BDS-FAL-DAEMON-v0.1`), and a CLI (`route`, `execute`, `forensics-query`, `validate`, `serve`, `gnat-dispatch`, `neuronforge-dispatch`, `status`, `canonical-status`) all exist and are tested. Still genuinely not delivered: broad cross-service adapter integrations, a broader daemon/API surface (list, write, or execution-over-HTTP routes), and persistence beyond forensic evidence — see `doc/system/00_overview/01-overview-charter.md`, the canonical current-baseline reference (`ROADMAP.md` and the other root pointer files predate this and are being superseded by it).
 
 ## Common Commands
 
 - Build/test: `cargo build`, `cargo test`
 - Contract gate: `bash ci_gate.sh` — execution bridge v1 contract participation. There is no GitHub workflow; `ci_gate.sh` is the gate, and `cargo test` covers the Rust suites.
 - Context bundle listing: `./scripts/context-bundle.sh --list`
-- CLI: `./target/debug/fa-local-run --help` lists all subcommands (`validate`, `route`, `execute`, `forensics-query`, `status`, `canonical-status`); `execute --help`-equivalent detail is in the same `--help` output, including adapter-selection and dispatch-mode flags.
+- CLI: `./target/debug/fa-local-run --help` lists all subcommands (`validate`, `route`, `execute`, `forensics-query`, `serve`, `gnat-dispatch`, `neuronforge-dispatch`, `status`, `canonical-status`); `execute --help`-equivalent detail is in the same `--help` output, including adapter-selection and dispatch-mode flags.
 
 ## Architecture
 

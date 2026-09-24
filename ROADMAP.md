@@ -100,20 +100,26 @@ Not yet delivered, in no particular priority order:
    (`drift-analysis`, `analyze.continuity.adjacent_scene.v1`) but no FA-Local-side consumer or
    demonstrated need for either, so GATE-00 closed with "no next task admission justified" rather
    than selecting one (`KI-FLO-20260918-007`).
-2. A daemon or networked API surface (FA Local stays a CLI binary with no HTTP surface by
-   doctrine; this would need an explicit, separately-authorized architectural decision).
+2. A broader daemon or networked API surface. `BDS-FAL-DAEMON-v0.1`
+   (`docs/plans/active/BDS_FAL_DAEMON_v0.1/`) separately authorized a narrow, read-only daemon,
+   and `fa-local-run serve` delivers it. It has one route,
+   `GET /api/v1/capabilities/{capability_id}`, and no other. It is default-off
+   (`FA_LOCAL_SERVE_ENABLED`), token-gated (scope `capability:read`), and uses port 8012 by
+   default. Anything broader needs its own authorization: a list route, a write-capable route, or
+   an execution-over-HTTP route. `route` and `execute` stay CLI-only.
 3. A persistence layer beyond forensic evidence (e.g. durable policy/capability/execution state
-   across restarts) — **blocked on item 2, not independently actionable**. `forge-local-runtime`'s
+   across restarts) — **not independently actionable**. `forge-local-runtime`'s
    accepted boundary doctrine (`BOUNDARIES.md`, `ARCHITECTURE.md`, `DECISIONS/0005-falocal-boundary.md`)
    already settles *who* would own it: FA Local's own "does not own" list explicitly names
    "hidden persistence authority," and DF Local Foundation is the accepted owner of "local
    database lifecycle, migrations, backup/restore/export doctrine... bounded recovery and
-   integrity support." What doesn't yet exist is a live gap to solve: FA Local is a CLI, not a
-   daemon, and every invocation takes its policy, capability-registry, and requester-trust inputs
-   as file arguments and exits — there is no in-memory process state to lose across restarts.
-   DataForge Local's only FA-Local-facing route today (`POST /api/v1/execution-bridge/status-events`,
+   integrity support." What does not exist is a live gap to solve. Every subcommand except `serve`
+   runs once and exits. The `serve` daemon (item 2) holds only the loaded capability registry and
+   its public-key map in memory. A restart re-reads both, so no process state is lost.
+   `BDS-FAL-DAEMON-v0.1` ruled this registry in-memory and file-backed, with no durable store
+   (OD-1). DataForge Local's only FA-Local-facing route today (`POST /api/v1/execution-bridge/status-events`,
    Phase X4) is write-only staging, with no read-back surface, and was never meant to be one (its
    own docstring: "performs storage mechanics only... does not re-derive or second-guess FA
-   Local's own execution semantics"). A durable-state proposal only becomes concrete once item 2
-   is itself authorized and defines what state a running FA Local process would actually need to
-   survive a restart.
+   Local's own execution semantics"). A durable-state proposal becomes concrete only when a
+   running FA Local process needs state that a restart cannot rebuild. The delivered `serve`
+   daemon has no such state (`KI-FLO-20260918-006`).

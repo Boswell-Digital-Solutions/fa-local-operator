@@ -367,7 +367,7 @@ set ever bound 8011. A script that passes `--port 8011` still collides and must 
 ## KI-FLO-20260924-002 — `doc/system`, `CLAUDE.md`, and `ROADMAP.md` still say FA Local has no daemon or API surface
 
 **Date found:** 2026-09-24
-**Status:** open
+**Status:** closed (fixed 2026-09-24)
 
 **What is wrong:** `fa-local-run serve` (#27, `BDS-FAL-DAEMON-v0.1`) adds one read-only HTTP
 route. Three documents still say that no such surface exists:
@@ -384,10 +384,61 @@ route. Three documents still say that no such surface exists:
 tests, and one `CLAUDE.md` line. It did not list `doc/system/` or `ROADMAP.md`, so #27 left them
 unchanged.
 
-**Fix:** None yet. The charter, the `CLAUDE.md` status paragraph, and `ROADMAP.md` items 2 and 3
-must describe the delivered `serve` surface and its limits: one read-only route, default-off.
-Then `bash doc/system/BUILD.sh` rebuilds `doc/FLOSYSTEM.md`. These files are outside the packet's
-allowlist, so the update needs the operator's go-ahead.
+**Fix:** The update changed these files:
 
-**Scope:** Open. Close this entry when the three documents and `doc/FLOSYSTEM.md` describe
-`serve` as delivered.
+- `doc/system/00_overview/01-overview-charter.md` lists `serve` as delivered, keeps only broader
+  routes as not delivered, and drops the "no daemon" premise from the persistence item.
+- `doc/system/10_service-contract/02-contract-surface.md` replaces its "no HTTP surface" and "no
+  daemon/API surface" statements with the one `serve` route and its limits.
+- `doc/system/50_operations/09-validation-and-delivery.md` limits its "not delivered" statements
+  to surfaces beyond `serve` and adds `serve`, `gnat-dispatch`, and `neuronforge-dispatch` to its
+  subcommand list.
+- `CLAUDE.md` lists the daemon and declared-fallback coordination as delivered and adds the same
+  three subcommands to both subcommand lists.
+- `ROADMAP.md` item 2 records the narrow daemon that `BDS-FAL-DAEMON-v0.1` authorized, and item 3
+  no longer depends on item 2.
+- `docs/plans/active/BDS_FAL_DAEMON_v0.1/README.md` updates its status line, its registration
+  line, and its package table. They said that packet 02 was not written and that the plan
+  authorized no code.
+- `bash doc/system/BUILD.sh` rebuilt `doc/FLOSYSTEM.md` and reported `BUILD_OK`.
+
+**Scope:** Closed. The charter, `CLAUDE.md`, `ROADMAP.md`, and `doc/FLOSYSTEM.md` describe `serve`
+as delivered, with its limits. The plan README gives the current status of the plan. The plan
+documents `01_...md` and `02_...md` are a record and stay unchanged.
+The legacy `doc/faSYSTEM.md` is non-canonical (§6) and stays unchanged. `KI-FLO-20260924-003`
+tracks other stale text that this sweep found.
+
+---
+
+## KI-FLO-20260924-003 — `doc/system` §3 and §9, `CLAUDE.md`, and one `serve` doc comment disagree with the code
+
+**Date found:** 2026-09-24
+**Status:** open
+
+**What is wrong:** The `KI-FLO-20260924-002` sweep found stale text that `serve` does not cause:
+
+- `doc/system/20_runtime/03-execution-bridge-writeback.md` describes Phase X3. It says that
+  `post_execution_status_event` returns `FaLocalError::WritebackNotWired` and that FA Local needs
+  an HTTP client. The code POSTs through `ureq`, and `writeback_wired` is `true`. The envelope
+  table gives `promotion_class` as `promotable`; the code sends `local_only`.
+- `doc/system/50_operations/09-validation-and-delivery.md` says that Gnat dispatch has no forensic
+  export sink and that NeuronForge-Local and DF-Local integrations are unstarted. It lists the
+  DataForge Local staging-endpoint wiring as not delivered and calls the writeback a stub. The §1
+  charter lists all of this work as delivered. The §9 command list omits `serve`, `gnat-dispatch`,
+  and `neuronforge-dispatch`. Its test list omits the `serve` and NeuronForge-Local suites and
+  most Gnat suites.
+- The `CLAUDE.md` Architecture section says that NeuronForge Local has "no forensic recording
+  yet". `NeuronForgeDispatchPipelineService` records one forensic event per run and can export it.
+- The `ServeService::reload` doc comment (`src/app/serve_service.rs`) names a `--watch` path.
+  `serve` has no `--watch` flag; only `SIGHUP` reloads. The scoping packet's 503 case also names a
+  failed re-load, but the code and packet test case 11 keep the previous good registry.
+
+**Root cause:** Same as `KI-FLO-20260918-002`. Each PR updates the §1 charter, but not always the
+other chapters or `CLAUDE.md`. The proposal and the scoping packet both mention a `--watch`
+refresh. The binary implements only `SIGHUP`, and the doc comment kept the `--watch` name.
+
+**Fix:** None yet. Update §3, §9, and the `CLAUDE.md` Architecture section to match §1 and the
+code. Remove `--watch` from the doc comment. Then run `bash doc/system/BUILD.sh`. The plan set
+under `docs/plans/` is a record and stays unchanged.
+
+**Scope:** Open. Close this entry when §3, §9, `CLAUDE.md`, and the doc comment match the code.
